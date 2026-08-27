@@ -1,0 +1,88 @@
+.overlay {
+  --live-accent: #21d8e8;
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  padding: clamp(24px, 4vw, 64px);
+  background: transparent;
+  color: #f7f8fa;
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+  overflow: hidden;
+}
+
+.overlay.dark {
+  background:
+    radial-gradient(circle at 18% 84%, color-mix(in srgb, var(--live-accent), transparent 89%), transparent 32rem),
+    #080a0d;
+}
+
+.card {
+  width: min(720px, calc(100vw - 48px));
+  min-height: 116px;
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) 116px;
+  gap: 18px;
+  align-items: center;
+  padding: 16px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-left: 3px solid var(--live-accent);
+  border-radius: 13px;
+  background: linear-gradient(120deg, rgba(10, 13, 17, 0.94), rgba(16, 19, 24, 0.88));
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.46), 0 0 32px color-mix(in srgb, var(--live-accent), transparent 92%);
+  backdrop-filter: blur(18px);
+}
+
+.cover {
+  width: 84px;
+  aspect-ratio: 1;
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.78);
+  background:
+    radial-gradient(circle at 65% 24%, color-mix(in srgb, var(--live-accent), transparent 38%), transparent 30%),
+    #172027;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.11);
+}
+
+.orbit { position: absolute; width: 68%; aspect-ratio: 1; border: 1px solid color-mix(in srgb, var(--live-accent), transparent 38%); border-radius: 50%; transform: rotateX(62deg) rotateZ(-22deg); }
+.core { position: absolute; width: 20%; aspect-ratio: 1; border-radius: 50%; background: var(--live-accent); box-shadow: 0 0 18px var(--live-accent); opacity: 0.75; }
+
+.copy { min-width: 0; }
+.liveLine { display: flex; align-items: center; gap: 6px; color: var(--live-accent); font: 700 9px var(--font-geist-mono); letter-spacing: 0.8px; }
+.liveLine i { width: 3px; height: 3px; margin: 0 2px; border-radius: 50%; background: rgba(255, 255, 255, 0.35); }
+.copy > strong { display: block; overflow: hidden; margin-top: 7px; color: #fff; font-size: clamp(22px, 3vw, 34px); line-height: 1; letter-spacing: -1.2px; text-overflow: ellipsis; white-space: nowrap; }
+.copy p { overflow: hidden; margin: 6px 0 12px; color: #a4aab3; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.progress { height: 3px; overflow: hidden; border-radius: 2px; background: rgba(255, 255, 255, 0.09); }
+.progress span { display: block; height: 100%; border-radius: inherit; background: var(--live-accent); box-shadow: 0 0 10px var(--live-accent); transition: width 220ms linear; }
+
+.metrics { min-height: 78px; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto auto; align-items: baseline; padding-left: 18px; border-left: 1px solid rgba(255, 255, 255, 0.1); font-family: var(--font-geist-mono); }
+.metrics > svg { grid-column: 1 / -1; color: var(--live-accent); margin-bottom: 7px; }
+.metrics strong { font-size: 24px; letter-spacing: -1px; }
+.metrics > span { margin-left: 4px; color: #69707a; font-size: 8px; }
+.metrics b { color: #aeb4bd; font-size: 10px; font-weight: 600; }
+.metrics time { justify-self: end; color: #aeb4bd; font-size: 10px; }
+
+.compact { padding: 20px; }
+.compact .card { width: min(520px, calc(100vw - 40px)); min-height: 88px; grid-template-columns: 62px minmax(0, 1fr) 94px; gap: 13px; padding: 12px 14px; }
+.compact .cover { width: 62px; }
+.compact .copy > strong { font-size: 23px; }
+.compact .copy p { margin: 4px 0 9px; }
+.compact .metrics { min-height: 58px; padding-left: 13px; }
+.compact .metrics strong { font-size: 19px; }
+
+@media (max-width: 560px) {
+  .overlay { padding: 14px; }
+  .card { width: 100%; grid-template-columns: 58px minmax(0, 1fr); gap: 12px; min-height: 88px; padding: 12px; }
+  .cover { width: 58px; }
+  .copy > strong { font-size: 21px; }
+  .copy p { margin: 4px 0 8px; }
+  .metrics { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress span { transition: none; }
+}
