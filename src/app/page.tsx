@@ -1713,7 +1713,7 @@ export default function Home() {
   }, [performanceMode]);
 
   return (
-    <main className={`app-shell ${performanceMode ? "performance-mode" : ""}`}>
+    <main className={`app-shell ${performanceMode ? "performance-mode" : ""} ${libraryOpen ? "library-open" : ""}`}>
       <audio ref={audioA} src={decks.A.track.url} onTimeUpdate={(event) => handleTimeUpdate("A", event.currentTarget)} onLoadedMetadata={(event) => onMetadata("A", event.currentTarget)} onEnded={() => handleEnded("A")} />
       <audio ref={audioB} src={decks.B.track.url} onTimeUpdate={(event) => handleTimeUpdate("B", event.currentTarget)} onLoadedMetadata={(event) => onMetadata("B", event.currentTarget)} onEnded={() => handleEnded("B")} />
 
@@ -1746,7 +1746,7 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="mobile-library-toggle"><button onClick={() => setLibraryOpen(!libraryOpen)}><Library size={17} />Music library<ChevronDown size={16} /></button></div>
+      <div className="mobile-library-toggle"><button aria-controls="music-library" aria-expanded={libraryOpen} onClick={() => setLibraryOpen(!libraryOpen)}><Library size={17} />Music library<ChevronDown size={16} /></button></div>
       <nav className="mobile-workspace-tabs" aria-label="Mobile workspace views">
         <button className={workspaceView === "Mix" ? "active" : ""} onClick={() => setWorkspaceView("Mix")}><SlidersHorizontal size={15} />Mix</button>
         <button className={workspaceView === "Queue" ? "active" : ""} onClick={() => setWorkspaceView("Queue")}><ListMusic size={15} />Queue <span>{queue.length}</span></button>
@@ -1754,7 +1754,9 @@ export default function Home() {
       </nav>
 
       <div className="console-layout">
+        <button className="mobile-library-scrim" aria-label="Close music library" onClick={() => setLibraryOpen(false)} />
         <aside
+          id="music-library"
           className={`library-panel ${libraryOpen ? "mobile-open" : ""} ${crateDragActive ? "drop-active" : ""}`}
           onDragEnter={(event) => { event.preventDefault(); setCrateDragActive(true); }}
           onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; setCrateDragActive(true); }}

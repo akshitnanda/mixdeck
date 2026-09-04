@@ -1,5 +1,5 @@
 .page {
-  min-height: 100vh;
+  min-height: var(--viewport-height);
   overflow: hidden;
   background:
     radial-gradient(circle at 74% 17%, rgba(238, 76, 168, 0.1), transparent 24rem),
