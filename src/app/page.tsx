@@ -43,6 +43,7 @@ import Link from "next/link";
 import { analyzeAudioFile } from "./_lib/audio-analysis";
 import { LIVE_CHANNEL_NAME, LIVE_STORAGE_KEY, type LiveSnapshot } from "./_lib/live-state";
 import { readLocalCrate, storeLocalTracks, type StoredCrateTrack } from "./_lib/local-crate";
+import { getMixCompatibility } from "./_lib/mix-compatibility";
 
 type DeckId = "A" | "B";
 type WorkspaceView = "Mix" | "Queue" | "Record";
@@ -860,6 +861,16 @@ export default function Home() {
     .map((trackId) => tracks.find((track) => track.id === trackId))
     .filter((track): track is Track => Boolean(track)), [queue, tracks]);
 
+  const activeTrack = decks[activeDeck].track;
+  const queueGuide = useMemo(() => queueTracks.map((track) => ({
+    track,
+    onDeck: track.id === activeTrack.id,
+    compatibility: getMixCompatibility(activeTrack, track),
+  })), [activeTrack, queueTracks]);
+  const nextMix = useMemo(() => queueGuide
+    .filter((candidate) => !candidate.onDeck)
+    .sort((left, right) => right.compatibility.score - left.compatibility.score)[0] ?? null, [queueGuide]);
+
   useEffect(() => {
     crossfaderValue.current = crossfader;
     queueState.current = queue;
@@ -1208,6 +1219,21 @@ export default function Home() {
     setQueue(next);
   };
 
+  const rankQueueByCompatibility = () => {
+    const sourceTrack = deckState.current[activeDeck].track;
+    const ranked = queueState.current
+      .map((trackId, index) => {
+        const track = trackState.current.find((item) => item.id === trackId);
+        const score = !track || track.id === sourceTrack.id ? -1 : getMixCompatibility(sourceTrack, track).score;
+        return { trackId, index, score };
+      })
+      .sort((left, right) => right.score - left.score || left.index - right.index)
+      .map(({ trackId }) => trackId);
+    queueState.current = ranked;
+    setQueue(ranked);
+    setNotice(`Queue ranked for Deck ${activeDeck} with the visible on-device mix guide.`);
+  };
+
   const startDeckWithTrack = async (id: DeckId, track: Track) => {
     const element = id === "A" ? audioA.current : audioB.current;
     if (!element || !track.url) {
@@ -1242,20 +1268,17 @@ export default function Home() {
   const pickNextQueuedTrack = (sourceTrack: Track) => {
     const candidates = queueState.current
       .map((trackId, index) => ({ track: trackState.current.find((item) => item.id === trackId), index }))
-      .filter((candidate): candidate is { track: Track; index: number } => Boolean(candidate.track?.url));
+      .filter((candidate): candidate is { track: Track; index: number } => Boolean(candidate.track?.url) && candidate.track?.id !== sourceTrack.id);
     if (!candidates.length) return null;
     if (shuffleState.current) {
       const candidate = candidates[shuffleCursor.current % candidates.length];
       shuffleCursor.current += 1;
       return candidate;
     }
-    const energyRank = { Low: 0, Medium: 1, High: 2 } as const;
     return candidates.reduce((best, candidate) => {
-      const score = Math.abs(candidate.track.bpm - sourceTrack.bpm)
-        + Math.abs(energyRank[candidate.track.energy] - energyRank[sourceTrack.energy]) * 8;
-      const bestScore = Math.abs(best.track.bpm - sourceTrack.bpm)
-        + Math.abs(energyRank[best.track.energy] - energyRank[sourceTrack.energy]) * 8;
-      return score < bestScore ? candidate : best;
+      const score = getMixCompatibility(sourceTrack, candidate.track).score;
+      const bestScore = getMixCompatibility(sourceTrack, best.track).score;
+      return score > bestScore ? candidate : best;
     });
   };
 
@@ -1852,16 +1875,39 @@ export default function Home() {
               </header>
 
               <div className="queue-insight">
-                <div><span>NEXT-UP LOGIC</span><strong>{shuffleQueue ? "Shuffle within playable tracks" : "BPM + energy match"}</strong></div>
+                <div><span>NEXT-UP LOGIC</span><strong>{shuffleQueue ? "Shuffle within playable tracks" : "Visible mix-guide score"}</strong></div>
                 <div><span>TRANSITION</span><strong>5.2 sec equal-power fade</strong></div>
                 <div><span>ACTIVE DECK</span><strong>Deck {activeDeck} · {decks[activeDeck].track.bpm} BPM</strong></div>
               </div>
 
+              <section className="mix-guide" aria-labelledby="mix-guide-title">
+                <div className="mix-guide-lead">
+                  <span className="eyebrow">ON-DEVICE MIX GUIDE</span>
+                  <div className="mix-guide-title-row">
+                    <div>
+                      <h3 id="mix-guide-title">{nextMix ? nextMix.track.title : "Build your next transition"}</h3>
+                      <p>{nextMix ? `Best fit after ${activeTrack.title}` : "Add another track to compare it with the active deck."}</p>
+                    </div>
+                    {nextMix && <strong className={`mix-score ${nextMix.compatibility.rating.toLowerCase()}`}><b>{nextMix.compatibility.score}</b><span>{nextMix.compatibility.rating} match</span></strong>}
+                  </div>
+                  {nextMix && (
+                    <div className="mix-evidence" aria-label="Compatibility evidence">
+                      <span><Waves size={12} />{nextMix.compatibility.bpmLabel}</span>
+                      <span><Disc3 size={12} />{nextMix.compatibility.keyLabel}</span>
+                      <span><Zap size={12} />{nextMix.compatibility.energyLabel}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="mix-guide-method">
+                  <div><span>SCORING METHOD</span><strong>Tempo 45 · key 35 · energy 15 · genre 5</strong><small>Deterministic guidance from track metadata. No audio or data leaves this device.</small></div>
+                  <button onClick={rankQueueByCompatibility} disabled={queueGuide.filter((candidate) => !candidate.onDeck).length < 2}><SlidersHorizontal size={14} />Rank queue</button>
+                </div>
+              </section>
+
               <div className="queue-list-panel">
                 <div className="queue-list-heading"><span>{queueTracks.length} TRACKS QUEUED</span><small>Drag rows to reorder · Q from the library adds more</small></div>
                 <div className="queue-items">
-                  {queueTracks.map((track, index) => {
-                    const bpmDelta = track.bpm - decks[activeDeck].track.bpm;
+                  {queueGuide.map(({ track, compatibility, onDeck }, index) => {
                     return (
                       <article
                         className={`queue-item ${track.url ? "playable" : "preview"}`}
@@ -1878,7 +1924,7 @@ export default function Home() {
                         <span className="queue-number">{String(index + 1).padStart(2, "0")}</span>
                         <Cover track={track} small />
                         <div className="queue-track-copy"><strong>{track.title}</strong><span>{track.artist} · {track.genre}</span></div>
-                        <div className="queue-match"><span>{bpmDelta === 0 ? "MATCH" : `${bpmDelta > 0 ? "+" : ""}${bpmDelta} BPM`}</span><strong>{track.energy}</strong></div>
+                        <div className="queue-match"><span>{onDeck ? "ON DECK" : `${compatibility.score} MATCH`}</span><strong>{onDeck ? "Current source" : compatibility.keyLabel}</strong></div>
                         <span className={`availability ${track.url ? "ready" : ""}`}>{track.url ? "Ready" : "Preview"}</span>
                         <button className="queue-play" onClick={() => void playQueuedNow(track)} disabled={!track.url} aria-label={`Play ${track.title} from queue`}><Play size={14} fill="currentColor" />Play</button>
                         <button className="queue-remove" onClick={() => removeFromQueue(index)} aria-label={`Remove ${track.title} from queue`}><X size={16} /></button>
