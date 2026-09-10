@@ -44,6 +44,7 @@ import { analyzeAudioFile } from "./_lib/audio-analysis";
 import { LIVE_CHANNEL_NAME, LIVE_STORAGE_KEY, type LiveSnapshot } from "./_lib/live-state";
 import { readLocalCrate, storeLocalTracks, type StoredCrateTrack } from "./_lib/local-crate";
 import { getMixCompatibility } from "./_lib/mix-compatibility";
+import { usePwa } from "./_components/pwa-provider";
 
 type DeckId = "A" | "B";
 type WorkspaceView = "Mix" | "Queue" | "Record";
@@ -708,6 +709,7 @@ export default function Home() {
   const [savedSet, setSavedSet] = useState<SavedSet | null>(null);
   const [notice, setNotice] = useState("Demo loops are generated locally — no network audio used.");
   const lastRecording = recordingHistory[0] ?? null;
+  const { canInstall, installed, offlineReady, offlineSupported, online, install } = usePwa();
 
   const audioA = useRef<HTMLAudioElement>(null);
   const audioB = useRef<HTMLAudioElement>(null);
@@ -1726,6 +1728,11 @@ export default function Home() {
     }
   };
 
+  const installMixDeck = async () => {
+    const accepted = await install();
+    setNotice(accepted ? "MixDeck installed. Launch it from your device like a native app." : "Install dismissed. MixDeck remains available in this browser.");
+  };
+
   useEffect(() => {
     if (!performanceMode) return;
     const handleEscape = (event: KeyboardEvent) => {
@@ -1751,6 +1758,10 @@ export default function Home() {
           <button className={workspaceView === "Record" ? "active" : ""} onClick={() => setWorkspaceView("Record")}><Radio size={15} />Record</button>
         </nav>
         <div className="topbar-actions">
+          <span className={`pwa-state ${online ? offlineReady ? "ready" : offlineSupported ? "preparing" : "unsupported" : "offline"}`} aria-label={online ? offlineReady ? "Offline mode ready" : offlineSupported ? "Preparing offline mode" : "Offline mode is not supported in this browser" : "MixDeck is working offline"} title={online ? offlineReady ? "App shell cached for offline use" : offlineSupported ? "Preparing the offline app shell" : "This browser supports online use only" : "Working from the cached app shell"}>
+            <ShieldCheck size={14} /><span>{online ? offlineReady ? "Offline ready" : offlineSupported ? "Preparing" : "Online only" : "Offline"}</span>
+          </span>
+          {canInstall && !installed && <button className="install-app-button" onClick={() => void installMixDeck()}><Download size={14} /><span>Install</span></button>}
           <a className="overlay-link" href="/overlay?background=dark" target="_blank" rel="noreferrer" aria-label="Open stream overlay in a new tab"><ExternalLink size={14} />OBS</a>
           {lastRecording && !recording && (
             <a className="recording-download" href={lastRecording.url} download={lastRecording.name} aria-label={`Download ${formatTime(lastRecording.duration)} recording`}>
@@ -1974,7 +1985,7 @@ export default function Home() {
             </section>
           )}
 
-          <footer className="workspace-footer"><span><i className="status-ok" />Audio engine ready</span><span>44.1 kHz</span><span>12 ms latency</span><span className="shortcut"><kbd>SPACE</kbd> Play <kbd>C</kbd> Cue <kbd>1–8</kbd> Hot cues <kbd>[ ]</kbd> Loop <kbd>+/-</kbd> Bend</span></footer>
+          <footer className="workspace-footer"><span><i className="status-ok" />Audio engine ready</span><span>{online ? offlineReady ? "Offline shell ready" : offlineSupported ? "Caching app shell" : "Online only" : "Working offline"}</span><span>44.1 kHz</span><span>12 ms latency</span><span className="shortcut"><kbd>SPACE</kbd> Play <kbd>C</kbd> Cue <kbd>1–8</kbd> Hot cues <kbd>[ ]</kbd> Loop <kbd>+/-</kbd> Bend</span></footer>
         </section>
       </div>
 
@@ -2023,7 +2034,7 @@ export default function Home() {
               <div className="dialog-content profile-panel">
                 <div className="profile-avatar">AK</div>
                 <div><span className="eyebrow">LOCAL SESSION</span><h3>Guest DJ</h3><p>No account is required for the MVP. Your crate, mixes, and saved set are not uploaded.</p></div>
-                <div className="profile-status"><CheckCircle2 size={16} />Ready to mix offline</div>
+                <div className="profile-status"><CheckCircle2 size={16} />{offlineReady ? "Ready to mix offline" : offlineSupported ? "Preparing offline app shell" : "Online session ready"}</div>
               </div>
             )}
 

@@ -132,6 +132,25 @@ button:focus-visible, input:focus-visible, label:has(input:focus-visible) {
 
 .topbar-actions { display: flex; gap: 8px; align-items: center; }
 
+.pwa-state, .install-app-button {
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 650 8px var(--font-geist-mono);
+  white-space: nowrap;
+}
+.pwa-state { color: var(--dim); background: rgba(255, 255, 255, 0.02); }
+.pwa-state.ready { color: var(--lime); border-color: rgba(166, 235, 94, 0.22); background: rgba(166, 235, 94, 0.045); }
+.pwa-state.offline { color: var(--amber); border-color: rgba(244, 174, 84, 0.28); background: rgba(244, 174, 84, 0.055); }
+.pwa-state.unsupported { color: var(--muted); }
+.pwa-state.preparing svg { animation: statusPulse 1.6s ease-in-out infinite; }
+.install-app-button { color: var(--cyan); border-color: rgba(33, 216, 232, 0.3); background: rgba(33, 216, 232, 0.07); cursor: pointer; }
+.install-app-button:hover { color: #071014; background: var(--cyan); }
+
 .icon-button {
   width: 34px;
   height: 34px;
@@ -833,6 +852,8 @@ input[type="range"] { appearance: none; background: transparent; margin: 0; }
   .topbar-actions .icon-button { display: none; }
   .topbar-actions .performance-toggle { display: grid; }
   .topbar-actions .overlay-link { display: none; }
+  .pwa-state, .install-app-button { width: 30px; padding: 0; justify-content: center; }
+  .pwa-state > span, .install-app-button > span { display: none; }
   .profile-button { display: none; }
   .mobile-library-toggle { height: 40px; }
   .mobile-workspace-tabs { height: 40px; }
@@ -874,6 +895,7 @@ input[type="range"] { appearance: none; background: transparent; margin: 0; }
 }
 
 @media (max-width: 360px) {
+  .pwa-state { display: none; }
   .deck { padding-inline: 10px; }
   .deck-controls { min-width: 0; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .transport { min-width: 0; gap: 4px; }
@@ -936,6 +958,8 @@ input[type="range"] { appearance: none; background: transparent; margin: 0; }
   .topbar-actions .icon-button:not(.performance-toggle),
   .topbar-actions .overlay-link,
   .profile-button { display: none; }
+  .pwa-state, .install-app-button { width: 30px; padding: 0; justify-content: center; }
+  .pwa-state > span, .install-app-button > span { display: none; }
   .record-button { height: 30px; padding-inline: 10px; }
   .performance-toggle { width: 30px; height: 30px; }
 
