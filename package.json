@@ -2,11 +2,13 @@
   "name": "mixdeck",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
+    "test:audio": "node --experimental-strip-types --test src/app/_lib/audio-analysis.test.ts",
     "icons:pwa": "node scripts/generate-pwa-icons.mjs",
     "verify:pwa": "node scripts/verify-pwa.mjs"
   },

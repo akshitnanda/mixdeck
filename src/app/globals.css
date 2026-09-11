@@ -479,6 +479,17 @@ kbd { font: 600 9px var(--font-geist-mono); color: #777d87; background: var(--pa
 .deck-stats span { min-height: 62px; padding: 10px; display: grid; align-content: center; gap: 4px; border-right: 1px solid var(--line); color: var(--dim); font-size: 9px; }
 .deck-stats span:last-child { border-right: 0; }
 .deck-stats b { color: #d5d8dd; font-size: 11px; }
+.auto-cue-card { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 11px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255, 255, 255, 0.018); }
+.auto-cue-card > svg { color: var(--dim); }
+.auto-cue-card > div { min-width: 0; display: grid; gap: 3px; }
+.auto-cue-card span { color: var(--dim); font: 700 8px var(--font-geist-mono); letter-spacing: 0.8px; }
+.auto-cue-card strong { color: #d5d8dd; font-size: 11px; }
+.auto-cue-card small { color: var(--muted); font-size: 9px; }
+.auto-cue-card button { min-height: 36px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--panel-3); color: var(--muted); cursor: pointer; font-size: 10px; font-weight: 650; }
+.auto-cue-card.available { border-color: rgba(33, 216, 232, 0.2); background: rgba(33, 216, 232, 0.035); }
+.auto-cue-card.available > svg, .auto-cue-card.available span { color: var(--cyan); }
+.auto-cue-card.available button { color: #9cebed; border-color: rgba(33, 216, 232, 0.3); }
+.auto-cue-card button:disabled { opacity: 0.35; cursor: not-allowed; }
 .fx-rack-heading { display: flex; justify-content: space-between; align-items: center; margin: 18px 0 8px; color: var(--dim); font: 650 8px var(--font-geist-mono); letter-spacing: 0.8px; }
 .fx-rack-heading button { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 9px; }
 .fx-rack-heading button:hover { color: var(--ink); }
@@ -1194,6 +1205,60 @@ input[type="range"] { appearance: none; background: transparent; margin: 0; }
 
   .performance-mode .console-layout,
   .performance-mode .mix-workspace { height: calc(var(--viewport-height) - 44px); }
+}
+
+@media (pointer: coarse) {
+  button, a, .upload-button { touch-action: manipulation; }
+  .library-nav button { min-height: 44px; }
+  .filter-row button { min-height: 40px; padding-inline: 12px; }
+  .track-list-heading button { min-height: 36px; }
+  .library-track { min-height: 72px; }
+  .favorite-button { width: 38px; height: 44px; padding: 0; }
+  .load-actions { display: flex; gap: 5px; }
+  .load-actions button { width: 36px; height: 36px; }
+  .dialog-close, .settings-actions button, .reset-deck-button, .auto-cue-card button { min-height: 44px; }
+  .dialog-close { width: 44px; }
+  .fx-rack-heading button { min-height: 36px; padding-inline: 8px; }
+  .queue-controls button, .record-hero-button { min-height: 44px; }
+  .loop-bank button, .beat-jump-bank button, .hot-cue-bank button,
+  .performance-mode .loop-bank button, .performance-mode .beat-jump-bank button, .performance-mode .hot-cue-bank button { min-height: 34px; }
+  .hot-cue-bank button, .performance-mode .hot-cue-bank button { width: 34px; }
+  .seek, .volume-control input, .deck-fx input, .crossfader, .fx-rack-grid input { min-height: 28px; }
+  .seek::-webkit-slider-thumb, .volume-control input::-webkit-slider-thumb,
+  .deck-fx input::-webkit-slider-thumb, .crossfader::-webkit-slider-thumb,
+  .fx-rack-grid input::-webkit-slider-thumb { width: 18px; height: 18px; margin-top: -8px; }
+  .knob input { inset: -8px; width: 55px; height: 55px; }
+}
+
+@media (pointer: coarse) and (max-width: 760px) {
+  .auto-cue-card { grid-template-columns: 28px minmax(0, 1fr); }
+  .auto-cue-card button { grid-column: 1 / -1; width: 100%; }
+  .performance-strip { overflow-x: auto; overscroll-behavior-inline: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+}
+
+@media (pointer: coarse) and (orientation: landscape) and (max-width: 950px) and (max-height: 520px) {
+  .deck, .performance-mode .deck { grid-template-rows: 26px 36px 36px 10px minmax(0, 1fr); }
+  .deck-heading { height: 26px; }
+  .deck-heading .icon-button { width: 30px; height: 30px; }
+  .track-identity, .performance-mode .track-identity { grid-template-columns: 30px minmax(0, 1fr) auto; }
+  .track-identity .cover { width: 30px; }
+  .wave-overview { height: 10px; }
+  .wave-main { height: 26px; }
+  .time-row { height: 10px; }
+  .deck-controls { grid-template-rows: 42px 22px 26px minmax(36px, 1fr); }
+  .cue-button, .sync-button { width: 36px; height: 40px; }
+  .play-button, .performance-mode .play-button { width: 40px; height: 40px; }
+  .deck-fx { display: flex; overflow-x: auto; overscroll-behavior-inline: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .deck-fx::-webkit-scrollbar { display: none; }
+  .deck-fx button { min-width: 44px; min-height: 26px; flex: none; }
+  .deck-fx input { min-width: 48px; flex: 0 0 48px; }
+  .performance-strip { display: flex; align-items: center; gap: 8px; padding-inline: 5px; overflow-x: auto; overscroll-behavior-inline: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none; touch-action: pan-x; }
+  .performance-strip::-webkit-scrollbar { display: none; }
+  .loop-bank, .beat-jump-bank, .hot-cue-bank { flex: none; gap: 4px; }
+  .hot-cue-bank { grid-column: auto; }
+  .loop-bank button, .beat-jump-bank button, .hot-cue-bank button,
+  .performance-mode .loop-bank button, .performance-mode .beat-jump-bank button, .performance-mode .hot-cue-bank button { min-width: 30px; width: auto; height: 30px; min-height: 30px; padding-inline: 5px; font-size: 8px; }
+  .knob input { inset: -5px; width: 37px; height: 37px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

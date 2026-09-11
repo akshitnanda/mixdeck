@@ -5,6 +5,8 @@ export type StoredCrateTrack = {
   bpm: number;
   key: string;
   duration: number;
+  suggestedCue?: number;
+  cueConfidence?: number;
   genre: string;
   energy: "Low" | "Medium" | "High";
   color: string;

@@ -60,6 +60,8 @@ type Track = {
   bpm: number;
   key: string;
   duration: number;
+  suggestedCue?: number;
+  cueConfidence?: number;
   genre: string;
   energy: "Low" | "Medium" | "High";
   color: string;
@@ -140,6 +142,8 @@ const BASE_TRACKS: Track[] = [
     bpm: 128,
     key: "8A",
     duration: 24,
+    suggestedCue: 0,
+    cueConfidence: 1,
     genre: "Future House",
     energy: "High",
     color: "#182947",
@@ -153,6 +157,8 @@ const BASE_TRACKS: Track[] = [
     bpm: 122,
     key: "9A",
     duration: 24,
+    suggestedCue: 0,
+    cueConfidence: 1,
     genre: "Deep House",
     energy: "Medium",
     color: "#3a1739",
@@ -661,7 +667,11 @@ function Deck({ id, state, active, onFocus, onOptions, onToggle, onCue, onSeek, 
                 key={index}
                 className={cue !== null ? "set" : ""}
                 onClick={(event) => onHotCue(index, event.shiftKey)}
-                aria-label={cue === null ? `Set hot cue ${index + 1} on deck ${id}` : `Trigger hot cue ${index + 1} on deck ${id}. Shift click to clear`}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  if (cue !== null) onHotCue(index, true);
+                }}
+                aria-label={cue === null ? `Set hot cue ${index + 1} on deck ${id}` : `Trigger hot cue ${index + 1} on deck ${id}. Shift click or long press to clear`}
                 style={{ "--cue-color": HOT_CUE_COLORS[index] } as CSSProperties}
               >{index + 1}</button>
             ))}
@@ -780,7 +790,7 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false;
     void readLocalCrate()
-      .then((storedTracks) => {
+      .then(async (storedTracks) => {
         if (cancelled || !storedTracks.length) return;
         const restored = storedTracks
           .sort((left, right) => right.lastModified - left.lastModified)
@@ -794,6 +804,8 @@ export default function Home() {
               bpm: stored.bpm,
               key: stored.key,
               duration: stored.duration,
+              suggestedCue: stored.suggestedCue,
+              cueConfidence: stored.cueConfidence,
               genre: stored.genre,
               energy: stored.energy,
               color: stored.color,
@@ -804,6 +816,19 @@ export default function Home() {
           });
         setTracks((current) => [...restored, ...current.filter((track) => !restored.some((item) => item.id === track.id))]);
         setNotice(`${restored.length} saved local ${restored.length === 1 ? "track" : "tracks"} restored from your crate.`);
+        const missingCueAnalysis = storedTracks.filter((track) => track.suggestedCue === undefined);
+        for (const stored of missingCueAnalysis) {
+          try {
+            const analysis = await analyzeAudioFile(stored.file);
+            if (cancelled) return;
+            const analyzed = { ...stored, duration: analysis.duration, key: analysis.key, suggestedCue: analysis.cuePoint, cueConfidence: analysis.cueConfidence };
+            setTracks((current) => current.map((track) => track.id === stored.id ? { ...track, duration: analysis.duration, key: analysis.key, suggestedCue: analysis.cuePoint, cueConfidence: analysis.cueConfidence } : track));
+            await storeLocalTracks([analyzed]);
+          } catch {
+            // Leave a previously saved track playable when its format cannot be decoded for analysis.
+          }
+        }
+        if (!cancelled && missingCueAnalysis.length) setNotice(`Restored crate ready · ${missingCueAnalysis.length} cue ${missingCueAnalysis.length === 1 ? "suggestion" : "suggestions"} analyzed on-device.`);
       })
       .catch(() => {
         if (!cancelled) setNotice("The persistent local crate is unavailable. Imports still work for this tab.");
@@ -1466,6 +1491,22 @@ export default function Home() {
     }
   };
 
+  const applySuggestedCue = (id: DeckId) => {
+    const state = deckState.current[id];
+    const suggestion = state.track.suggestedCue;
+    if (suggestion === undefined) {
+      setNotice(`Deck ${id} has no analyzed cue suggestion yet.`);
+      return;
+    }
+    const element = id === "A" ? audioA.current : audioB.current;
+    const cue = Math.max(0, Math.min(suggestion, state.track.duration || suggestion));
+    const hotCues = [...state.hotCues];
+    hotCues[0] = cue;
+    if (element) element.currentTime = cue;
+    updateDeck(id, { currentTime: cue, hotCues });
+    setNotice(`Deck ${id} cue 1 set to the on-device suggestion at ${formatTime(cue)}.`);
+  };
+
   const handleTimeUpdate = (id: DeckId, element: HTMLAudioElement) => {
     const loop = decks[id].loop;
     if (loop.enabled && element.currentTime >= loop.end) {
@@ -1671,6 +1712,8 @@ export default function Home() {
         bpm: stored.bpm,
         key: stored.key,
         duration: stored.duration,
+        suggestedCue: stored.suggestedCue,
+        cueConfidence: stored.cueConfidence,
         genre: stored.genre,
         energy: stored.energy,
         color: stored.color,
@@ -1684,7 +1727,7 @@ export default function Home() {
     setCrateDragActive(false);
     try {
       await storeLocalTracks(storedTracks);
-      setNotice(`${additions.length} local ${additions.length === 1 ? "track" : "tracks"} saved. Analyzing musical key on-device…`);
+      setNotice(`${additions.length} local ${additions.length === 1 ? "track" : "tracks"} saved. Analyzing key and cue point on-device…`);
     } catch {
       setNotice(`${additions.length} local ${additions.length === 1 ? "track" : "tracks"} added for this tab. Persistent storage was unavailable.`);
     }
@@ -1692,10 +1735,10 @@ export default function Home() {
     for (const stored of storedTracks) {
       try {
         const analysis = await analyzeAudioFile(stored.file);
-        const analyzed = { ...stored, duration: analysis.duration, key: analysis.key };
-        setTracks((current) => current.map((track) => track.id === stored.id ? { ...track, duration: analysis.duration, key: analysis.key } : track));
+        const analyzed = { ...stored, duration: analysis.duration, key: analysis.key, suggestedCue: analysis.cuePoint, cueConfidence: analysis.cueConfidence };
+        setTracks((current) => current.map((track) => track.id === stored.id ? { ...track, duration: analysis.duration, key: analysis.key, suggestedCue: analysis.cuePoint, cueConfidence: analysis.cueConfidence } : track));
         await storeLocalTracks([analyzed]);
-        analyzedLabels.push(`${stored.title}: ${analysis.key} (${analysis.keyLabel})`);
+        analyzedLabels.push(`${stored.title}: ${analysis.key} · cue ${formatTime(analysis.cuePoint)}`);
       } catch {
         analyzedLabels.push(`${stored.title}: key unavailable`);
       }
@@ -1827,7 +1870,7 @@ export default function Home() {
             {filteredTracks.map((track) => (
               <article className={`library-track ${decks.A.track.id === track.id || decks.B.track.id === track.id ? "loaded" : ""}`} key={track.id}>
                 <Cover track={track} small />
-                <div className="library-track-copy"><strong>{track.title}</strong><span>{track.artist}</span><small>{track.genre}</small></div>
+                <div className="library-track-copy"><strong>{track.title}</strong><span>{track.artist}</span><small>{track.genre}{track.suggestedCue !== undefined ? ` · Cue ${formatTime(track.suggestedCue)}` : ""}</small></div>
                 <div className="track-stats"><strong>{track.bpm}</strong><span>{track.key}</span></div>
                 <button className={`favorite-button ${favorites.has(track.id) ? "favorite" : ""}`} onClick={() => setFavorites((current) => {
                   const next = new Set(current);
@@ -2045,6 +2088,15 @@ export default function Home() {
                 <div className="dialog-content">
                   <div className="deck-summary"><Cover track={state.track} /><div><span className="eyebrow">LOADED TRACK</span><h3>{state.track.title}</h3><p>{state.track.artist} · {Math.round(state.track.bpm * state.rate)} BPM · {state.track.key}</p></div></div>
                   <div className="deck-stats"><span><b>{state.hotCues.filter((cue) => cue !== null).length}</b> hot cues</span><span><b>{state.loop.enabled ? `${state.loop.beats} beats` : "Off"}</b> loop</span><span><b>{Math.round(state.rate * 100)}%</b> tempo</span></div>
+                  <div className={`auto-cue-card ${state.track.suggestedCue !== undefined ? "available" : ""}`}>
+                    <Sparkles size={18} />
+                    <div>
+                      <span>AUTO CUE</span>
+                      <strong>{state.track.suggestedCue === undefined ? "Import audio to analyze" : `${formatTime(state.track.suggestedCue)} suggested start`}</strong>
+                      <small>{state.track.suggestedCue === undefined ? "Local tracks are scanned on-device." : `First stable onset · ${Math.round((state.track.cueConfidence ?? 0) * 100)}% confidence`}</small>
+                    </div>
+                    <button disabled={state.track.suggestedCue === undefined} onClick={() => applySuggestedCue(id)}>Set cue 1</button>
+                  </div>
                   <div className="fx-rack-heading"><span>8-EFFECT RACK</span><button onClick={() => updateDeck(id, { fx: defaultFx() })}>Clear FX</button></div>
                   <div className="fx-rack-grid">
                     {FX_NAMES.map((effect) => {
