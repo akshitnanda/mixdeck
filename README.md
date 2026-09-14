@@ -10,8 +10,9 @@ Live app: [mixdeck-dj.vercel.app](https://mixdeck-dj.vercel.app/)
 - Constant-power crossfader and per-deck volume
 - Working three-band EQ and master gain
 - Per-deck low/high-pass filter, tempo-aware feedback delay, and generated stereo reverb
-- One, two, four, and eight-beat loops with waveform loop regions
+- One to 32-beat loops with waveform loop regions
 - Eight color-coded hot cues per deck with waveform markers
+- Large performance pads with cue timestamps, explicit clearing, loop lengths, and beat jumps
 - Four-beat deck jumps plus keyboard controls for play, cue, sync, loops, hot cues, and momentary pitch bend
 - Reorderable set queue with playable-state feedback and direct queue playback
 - AutoDJ with BPM/energy selection, shuffle/repeat modes, and 5.2-second crossfades
@@ -36,6 +37,12 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+## Touch Controls
+
+Tap **Pads** in a deck heading (the options button on desktop) to open its performance panel. Tap an empty cue pad to save the current position, then tap it again to jump back. Choose **Clear cues**, tap the saved pads to remove, and choose **Done clearing** to return to playback controls.
+
+The **Loops & jumps** bank provides 1–32 beat loops and four- or sixteen-beat jumps. **Exit loop** releases a running loop. Expand **Track details, auto cue & effects** for the cue suggestion and full effect rack. These panels scroll within the screen in landscape.
 
 ## Stream Overlay
 
@@ -62,6 +69,7 @@ Imported tracks, saved sets, and recordings remain in the browser that created t
 
 ```bash
 npm run lint
+npm run test:audio
 npm run build
 npm audit --omit=dev
 ```

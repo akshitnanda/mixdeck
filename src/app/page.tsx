@@ -45,6 +45,7 @@ import { LIVE_CHANNEL_NAME, LIVE_STORAGE_KEY, type LiveSnapshot } from "./_lib/l
 import { readLocalCrate, storeLocalTracks, type StoredCrateTrack } from "./_lib/local-crate";
 import { getMixCompatibility } from "./_lib/mix-compatibility";
 import { usePwa } from "./_components/pwa-provider";
+import { PerformancePads } from "./_components/performance-pads";
 
 type DeckId = "A" | "B";
 type WorkspaceView = "Mix" | "Queue" | "Record";
@@ -403,18 +404,25 @@ function Cover({ track, small = false }: { track: Track; small?: boolean }) {
 
 function Waveform({ deck, progress, onSwipe }: { deck: DeckState; progress: number; onSwipe: (direction: -1 | 1) => void }) {
   const values = useMemo(() => waveformValues(deck.track.id), [deck.track.id]);
-  const touchStartX = useRef<number | null>(null);
+  const touchStart = useRef<{ x: number; y: number; id: number } | null>(null);
   return (
     <div
       className="waveform"
       aria-label={`Waveform for ${deck.track.title}. Swipe left or right to jump four beats.`}
-      onTouchStart={(event) => { touchStartX.current = event.changedTouches[0]?.clientX ?? null; }}
+      onTouchStart={(event) => {
+        const touch = event.touches[0];
+        touchStart.current = event.touches.length === 1 && touch ? { x: touch.clientX, y: touch.clientY, id: touch.identifier } : null;
+      }}
+      onTouchCancel={() => { touchStart.current = null; }}
       onTouchEnd={(event) => {
-        const start = touchStartX.current;
-        const end = event.changedTouches[0]?.clientX;
-        touchStartX.current = null;
-        if (start === null || end === undefined || Math.abs(end - start) < 44) return;
-        onSwipe(end > start ? -1 : 1);
+        const start = touchStart.current;
+        touchStart.current = null;
+        const end = Array.from(event.changedTouches).find((touch) => touch.identifier === start?.id);
+        if (!start || !end || event.touches.length) return;
+        const dx = end.clientX - start.x;
+        const dy = end.clientY - start.y;
+        if (Math.abs(dx) < 44 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+        onSwipe(dx > 0 ? -1 : 1);
       }}
     >
       <div className="wave-overview">
@@ -512,7 +520,7 @@ function Deck({ id, state, active, onFocus, onOptions, onToggle, onCue, onSeek, 
       <div className="deck-heading">
         <span className="deck-label" style={{ "--deck-accent": accent } as CSSProperties}>DECK {id}</span>
         <div className="deck-status"><i className={state.playing ? "live" : ""} />{state.playing ? "LIVE" : "READY"}</div>
-        <button className="icon-button" onClick={onOptions} aria-label={`Open options for deck ${id}`}><MoreHorizontal size={18} /></button>
+        <button className="icon-button deck-pad-launcher" onClick={onOptions} aria-label={`Open options for deck ${id}`}><MoreHorizontal size={18} /><span>Pads</span></button>
       </div>
 
       <div className="track-identity">
@@ -669,9 +677,9 @@ function Deck({ id, state, active, onFocus, onOptions, onToggle, onCue, onSeek, 
                 onClick={(event) => onHotCue(index, event.shiftKey)}
                 onContextMenu={(event) => {
                   event.preventDefault();
-                  if (cue !== null) onHotCue(index, true);
+                  onOptions();
                 }}
-                aria-label={cue === null ? `Set hot cue ${index + 1} on deck ${id}` : `Trigger hot cue ${index + 1} on deck ${id}. Shift click or long press to clear`}
+                aria-label={cue === null ? `Set hot cue ${index + 1} on deck ${id}` : `Trigger hot cue ${index + 1} on deck ${id}. Shift click to clear, or open Pads`}
                 style={{ "--cue-color": HOT_CUE_COLORS[index] } as CSSProperties}
               >{index + 1}</button>
             ))}
@@ -716,6 +724,29 @@ export default function Home() {
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [recordingHistory, setRecordingHistory] = useState<RecordingResult[]>([]);
   const [panel, setPanel] = useState<PanelView>(null);
+  const panelDeckId: DeckId = panel === "deck-B" ? "B" : "A";
+  const dialogRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!panel) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+    dialog?.querySelector<HTMLButtonElement>(".dialog-close")?.focus();
+    const trapFocus = (event: KeyboardEvent) => {
+      if (event.key !== "Tab" || !dialog) return;
+      const controls = Array.from(dialog.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), a[href], summary, [tabindex='0']"))
+        .filter((element) => element.getClientRects().length > 0 && (!element.closest("details:not([open])") || element.tagName === "SUMMARY"));
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    dialog?.addEventListener("keydown", trapFocus);
+    return () => {
+      dialog?.removeEventListener("keydown", trapFocus);
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+    };
+  }, [panel]);
   const [savedSet, setSavedSet] = useState<SavedSet | null>(null);
   const [notice, setNotice] = useState("Demo loops are generated locally — no network audio used.");
   const lastRecording = recordingHistory[0] ?? null;
@@ -1586,6 +1617,7 @@ export default function Home() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.repeat) return;
+      if ((event.target as HTMLElement | null)?.closest("[role='dialog']") && event.key !== "Escape") return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
         setLibraryOpen(true);
@@ -2034,7 +2066,7 @@ export default function Home() {
 
       {panel && (
         <div className="dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setPanel(null); }}>
-          <section className="app-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+          <section ref={dialogRef} className="app-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
             <header className="dialog-header">
               <div>
                 <span className="eyebrow">{panel.startsWith("deck-") ? "DECK CONTROL" : "MIXDECK LOCAL"}</span>
@@ -2081,11 +2113,21 @@ export default function Home() {
               </div>
             )}
 
+            {panel.startsWith("deck-") && (
+              <div className="dialog-content pad-dialog-content">
+                <PerformancePads key={panelDeckId} deck={panelDeckId} playing={decks[panelDeckId].playing} playable={Boolean(decks[panelDeckId].track.url)} hotCues={decks[panelDeckId].hotCues} loop={decks[panelDeckId].loop}
+                  onToggle={() => void toggleDeck(panelDeckId)} onCue={(index, clear) => triggerHotCue(panelDeckId, index, clear)}
+                  onLoop={(beats) => toggleLoop(panelDeckId, beats)} onJump={(beats) => beatJumpDeck(panelDeckId, beats)}
+                  onReleaseLoop={() => updateDeck(panelDeckId, { loop: { ...decks[panelDeckId].loop, enabled: false } })} />
+              </div>
+            )}
             {panel.startsWith("deck-") && (() => {
               const id = panel.slice(-1) as DeckId;
               const state = decks[id];
               return (
                 <div className="dialog-content">
+                  <details className="deck-details">
+                    <summary>Track details, auto cue & effects</summary>
                   <div className="deck-summary"><Cover track={state.track} /><div><span className="eyebrow">LOADED TRACK</span><h3>{state.track.title}</h3><p>{state.track.artist} · {Math.round(state.track.bpm * state.rate)} BPM · {state.track.key}</p></div></div>
                   <div className="deck-stats"><span><b>{state.hotCues.filter((cue) => cue !== null).length}</b> hot cues</span><span><b>{state.loop.enabled ? `${state.loop.beats} beats` : "Off"}</b> loop</span><span><b>{Math.round(state.rate * 100)}%</b> tempo</span></div>
                   <div className={`auto-cue-card ${state.track.suggestedCue !== undefined ? "available" : ""}`}>
@@ -2112,6 +2154,7 @@ export default function Home() {
                   </div>
                   <button className="reset-deck-button" onClick={() => resetDeck(id)}><RotateCcw size={15} />Reset Deck {id} controls</button>
                   <p className="settings-note">Reset returns transport, tempo, EQ, FX, loops, and hot cues to their defaults. The loaded track stays in place.</p>
+                  </details>
                 </div>
               );
             })()}
