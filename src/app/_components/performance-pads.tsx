@@ -1,11 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import { TempoControls } from "./tempo-controls";
 
 type Props = {
   deck: string;
   playing: boolean;
   playable: boolean;
+  trackId: string;
+  bpm: number;
+  rate: number;
+  onRate: (rate: number) => void;
+  onSync: () => void;
+  onBpm: (bpm: number) => Promise<string>;
   hotCues: Array<number | null>;
   loop: { enabled: boolean; beats: number };
   onToggle: () => void;
@@ -17,7 +24,7 @@ type Props = {
 
 const timestamp = (seconds: number) => `${Math.floor(seconds / 60)}:${(seconds % 60).toFixed(1).padStart(4, "0")}`;
 
-export function PerformancePads({ deck, playing, playable, hotCues, loop, onToggle, onCue, onLoop, onJump, onReleaseLoop }: Props) {
+export function PerformancePads({ deck, playing, playable, trackId, bpm, rate, onRate, onSync, onBpm, hotCues, loop, onToggle, onCue, onLoop, onJump, onReleaseLoop }: Props) {
   const [bank, setBank] = useState("cues");
   const [clearing, setClearing] = useState(false);
 
@@ -27,6 +34,7 @@ export function PerformancePads({ deck, playing, playable, hotCues, loop, onTogg
         <div className="pad-bank-switch" role="group" aria-label="Performance bank">
           <button aria-pressed={bank === "cues"} onClick={() => { setBank("cues"); setClearing(false); }}>Hot cues</button>
           <button aria-pressed={bank === "loops"} onClick={() => { setBank("loops"); setClearing(false); }}>Loops & jumps</button>
+          <button aria-pressed={bank === "tempo"} onClick={() => { setBank("tempo"); setClearing(false); }}>Tempo</button>
         </div>
         <button className="pad-play" disabled={!playable} onClick={onToggle} aria-label={`${playing ? "Pause" : "Play"} deck ${deck} from pads`}>{playing ? "Pause" : "Play"}</button>
       </div>
@@ -47,6 +55,8 @@ export function PerformancePads({ deck, playing, playable, hotCues, loop, onTogg
             ))}
           </div>
         </>
+      ) : bank === "tempo" ? (
+        <TempoControls key={trackId} deck={deck} bpm={bpm} rate={rate} onRate={onRate} onSync={onSync} onBpm={onBpm} />
       ) : (
         <>
           <div className="pad-bank-heading">

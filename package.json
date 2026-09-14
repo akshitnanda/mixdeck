@@ -8,7 +8,7 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "test:audio": "node --experimental-strip-types --test src/app/_lib/audio-analysis.test.ts",
+    "test:audio": "node --experimental-strip-types --test src/app/_lib/audio-analysis.test.ts src/app/_lib/tempo.test.ts",
     "icons:pwa": "node scripts/generate-pwa-icons.mjs",
     "verify:pwa": "node scripts/verify-pwa.mjs"
   },

@@ -44,6 +44,10 @@ Tap **Pads** in a deck heading (the options button on desktop) to open its perfo
 
 The **Loops & jumps** bank provides 1–32 beat loops and four- or sixteen-beat jumps. **Exit loop** releases a running loop. Expand **Track details, auto cue & effects** for the cue suggestion and full effect rack. These panels scroll within the screen in landscape.
 
+The **Tempo** bank adjusts playback from −20% to +25%, with 0.1% fine steps and a reset button. Sync follows the other deck's current playing tempo and reports when a speed limit prevents an exact match.
+
+For imported audio, enter the original **Track BPM**, or tap **Tap BPM** steadily at least four times, then choose **Apply BPM**. BPM corrections update every deck holding that track and save to the local crate. Demo-track corrections last for the current session. Applying a BPM correction exits active loops on that track; changing playback speed alone preserves their beat length. Imported tracks initially use 120 BPM until corrected; tap tempo is a manual estimate.
+
 ## Stream Overlay
 
 Open the overlay in a browser source while MixDeck is running:

@@ -501,6 +501,27 @@ body:has(.dialog-backdrop) { overflow: hidden; }
 .performance-pads button:active:not(:disabled) { transform: scale(0.97); }
 .loop-pad-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .pad-jumps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.pad-bank-switch { min-width: 0; }
+.pad-bank-switch button { padding-inline: 8px; }
+.tempo-controls { display: grid; gap: 14px; padding-top: 18px; }
+.tempo-readout { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.tempo-readout strong { font: 700 32px var(--font-geist-mono); color: var(--cyan); }
+.tempo-readout small { font-size: 12px; color: var(--muted); }
+.tempo-readout > span { font: 600 14px var(--font-geist-mono); }
+.tempo-slider { display: grid; gap: 6px; color: var(--muted); font-size: 11px; }
+.tempo-slider input { appearance: none; width: 100%; min-width: 0; height: 44px; accent-color: var(--cyan); touch-action: pan-y; }
+.tempo-slider input::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: #38434b; }
+.tempo-slider input::-webkit-slider-thumb { appearance: none; width: 22px; height: 22px; margin-top: -9px; border-radius: 50%; background: var(--cyan); }
+.tempo-slider input::-moz-range-track { height: 4px; border-radius: 2px; background: #38434b; }
+.tempo-slider input::-moz-range-thumb { width: 22px; height: 22px; border: 0; border-radius: 50%; background: var(--cyan); }
+.tempo-actions { display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 8px; }
+.tempo-actions button, .tempo-sync { font-size: 11px; }
+.bpm-calibration { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: end; gap: 8px; border-top: 1px solid var(--line); padding-top: 14px; }
+.bpm-calibration label { display: grid; gap: 6px; color: var(--muted); font-size: 11px; }
+.bpm-calibration input { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--canvas); color: var(--ink); padding: 8px; font-size: 16px; }
+.bpm-calibration button { font-size: 11px; padding-inline: 10px; }
+.tempo-help, .tempo-feedback { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.tempo-feedback { min-height: 34px; color: #a4e9ee; }
 .deck-details { margin-top: 18px; border-top: 1px solid var(--line); }
 .pad-dialog-content { padding-bottom: 0; }
 .pad-dialog-content + .dialog-content { padding-top: 0; }

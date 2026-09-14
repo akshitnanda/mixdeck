@@ -42,10 +42,11 @@ import { flushSync } from "react-dom";
 import Link from "next/link";
 import { analyzeAudioFile } from "./_lib/audio-analysis";
 import { LIVE_CHANNEL_NAME, LIVE_STORAGE_KEY, type LiveSnapshot } from "./_lib/live-state";
-import { readLocalCrate, storeLocalTracks, type StoredCrateTrack } from "./_lib/local-crate";
+import { readLocalCrate, storeLocalTracks, updateLocalTrackMetadata, type StoredCrateTrack } from "./_lib/local-crate";
 import { getMixCompatibility } from "./_lib/mix-compatibility";
 import { usePwa } from "./_components/pwa-provider";
 import { PerformancePads } from "./_components/performance-pads";
+import { beatSeconds, clampRate, matchingRate } from "./_lib/tempo";
 
 type DeckId = "A" | "B";
 type WorkspaceView = "Mix" | "Queue" | "Record";
@@ -852,9 +853,9 @@ export default function Home() {
           try {
             const analysis = await analyzeAudioFile(stored.file);
             if (cancelled) return;
-            const analyzed = { ...stored, duration: analysis.duration, key: analysis.key, suggestedCue: analysis.cuePoint, cueConfidence: analysis.cueConfidence };
+            const analyzed = { duration: analysis.duration, key: analysis.key, suggestedCue: analysis.cuePoint, cueConfidence: analysis.cueConfidence };
             setTracks((current) => current.map((track) => track.id === stored.id ? { ...track, duration: analysis.duration, key: analysis.key, suggestedCue: analysis.cuePoint, cueConfidence: analysis.cueConfidence } : track));
-            await storeLocalTracks([analyzed]);
+            await updateLocalTrackMetadata(stored.id, analyzed);
           } catch {
             // Leave a previously saved track playable when its format cannot be decoded for analysis.
           }
@@ -1456,7 +1457,7 @@ export default function Home() {
   const beatJumpDeck = (id: DeckId, beats: number) => {
     const element = id === "A" ? audioA.current : audioB.current;
     if (!element) return;
-    const seconds = beats * (60 / (decks[id].track.bpm * decks[id].rate));
+    const seconds = beatSeconds(beats, decks[id].track.bpm);
     const duration = element.duration || decks[id].track.duration;
     const nextTime = Math.max(0, Math.min(duration, element.currentTime + seconds));
     element.currentTime = nextTime;
@@ -1473,7 +1474,7 @@ export default function Home() {
       setNotice(`Deck ${id} loop released.`);
       return;
     }
-    const beatDuration = 60 / (decks[id].track.bpm * decks[id].rate);
+    const beatDuration = beatSeconds(1, decks[id].track.bpm);
     const start = element.currentTime;
     const end = Math.min(element.duration || decks[id].track.duration, start + beatDuration * beats);
     updateDeck(id, { loop: { enabled: true, beats, start, end } });
@@ -1494,7 +1495,7 @@ export default function Home() {
       setNotice(`Deck ${id} loop OUT must be after the IN point.`);
       return;
     }
-    const beatDuration = 60 / (decks[id].track.bpm * decks[id].rate);
+    const beatDuration = beatSeconds(1, decks[id].track.bpm);
     const beats = Math.max(1, Math.round((currentTime - start) / beatDuration));
     updateDeck(id, { loop: { enabled: true, beats, start, end: currentTime } });
     setNotice(`Deck ${id} manual loop locked from ${formatTime(start)} to ${formatTime(currentTime)}.`);
@@ -1577,13 +1578,41 @@ export default function Home() {
     setNotice(`${track.title} loaded to Deck ${id}.`);
   };
 
-  const syncDeck = (id: DeckId) => {
-    const other: DeckId = id === "A" ? "B" : "A";
-    const rate = Math.max(0.8, Math.min(1.25, decks[other].track.bpm / decks[id].track.bpm));
+  const changeDeckRate = (id: DeckId, requested: number) => {
+    if (!Number.isFinite(requested)) return;
+    const rate = Math.round(clampRate(requested) * 100000) / 100000;
     const element = id === "A" ? audioA.current : audioB.current;
     if (element) element.playbackRate = rate;
     updateDeck(id, { rate });
-    setNotice(`Deck ${id} tempo matched to ${decks[other].track.bpm} BPM.`);
+  };
+
+  const correctTrackBpm = async (id: DeckId, bpm: number): Promise<string> => {
+    if (!Number.isFinite(bpm) || bpm < 40 || bpm > 240) return "Enter a BPM between 40 and 240.";
+    const track = deckState.current[id].track;
+    setTracks((current) => current.map((item) => item.id === track.id ? { ...item, bpm } : item));
+    for (const deckId of ["A", "B"] as const) {
+      const state = deckState.current[deckId];
+      if (state.track.id === track.id) updateDeck(deckId, { track: { ...state.track, bpm }, loop: { ...state.loop, enabled: false } });
+    }
+    setNotice(`${track.title} calibrated to ${bpm} BPM.`);
+    if (track.source !== "Local") return "BPM updated for this session. Demo corrections reset on reload.";
+    try {
+      const saved = await updateLocalTrackMetadata(track.id, { bpm });
+      return saved ? "BPM saved to your local crate." : "BPM updated for this session. This track is not in the saved crate.";
+    } catch {
+      return "BPM updated for this session. Browser storage was unavailable.";
+    }
+  };
+
+  const syncDeck = (id: DeckId) => {
+    const other: DeckId = id === "A" ? "B" : "A";
+    const target = decks[other].track.bpm * decks[other].rate;
+    const rate = matchingRate(decks[id].track.bpm, decks[other].track.bpm, decks[other].rate);
+    changeDeckRate(id, rate);
+    const matched = decks[id].track.bpm * rate;
+    setNotice(Math.abs(matched - target) < 0.01
+      ? `Deck ${id} tempo matched to ${target.toFixed(1)} BPM.`
+      : `Deck ${id} reached its speed limit at ${matched.toFixed(1)} BPM. Target: ${target.toFixed(1)} BPM.`);
   };
 
   useEffect(() => {
@@ -1767,9 +1796,9 @@ export default function Home() {
     for (const stored of storedTracks) {
       try {
         const analysis = await analyzeAudioFile(stored.file);
-        const analyzed = { ...stored, duration: analysis.duration, key: analysis.key, suggestedCue: analysis.cuePoint, cueConfidence: analysis.cueConfidence };
+        const analyzed = { duration: analysis.duration, key: analysis.key, suggestedCue: analysis.cuePoint, cueConfidence: analysis.cueConfidence };
         setTracks((current) => current.map((track) => track.id === stored.id ? { ...track, duration: analysis.duration, key: analysis.key, suggestedCue: analysis.cuePoint, cueConfidence: analysis.cueConfidence } : track));
-        await storeLocalTracks([analyzed]);
+        await updateLocalTrackMetadata(stored.id, analyzed);
         analyzedLabels.push(`${stored.title}: ${analysis.key} · cue ${formatTime(analysis.cuePoint)}`);
       } catch {
         analyzedLabels.push(`${stored.title}: key unavailable`);
@@ -2116,6 +2145,8 @@ export default function Home() {
             {panel.startsWith("deck-") && (
               <div className="dialog-content pad-dialog-content">
                 <PerformancePads key={panelDeckId} deck={panelDeckId} playing={decks[panelDeckId].playing} playable={Boolean(decks[panelDeckId].track.url)} hotCues={decks[panelDeckId].hotCues} loop={decks[panelDeckId].loop}
+                  trackId={decks[panelDeckId].track.id} bpm={decks[panelDeckId].track.bpm} rate={decks[panelDeckId].rate}
+                  onRate={(rate) => changeDeckRate(panelDeckId, rate)} onSync={() => syncDeck(panelDeckId)} onBpm={(bpm) => correctTrackBpm(panelDeckId, bpm)}
                   onToggle={() => void toggleDeck(panelDeckId)} onCue={(index, clear) => triggerHotCue(panelDeckId, index, clear)}
                   onLoop={(beats) => toggleLoop(panelDeckId, beats)} onJump={(beats) => beatJumpDeck(panelDeckId, beats)}
                   onReleaseLoop={() => updateDeck(panelDeckId, { loop: { ...decks[panelDeckId].loop, enabled: false } })} />

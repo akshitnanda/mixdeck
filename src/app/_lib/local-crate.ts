@@ -20,6 +20,8 @@ const DB_NAME = "mixdeck-local-crate";
 const STORE_NAME = "tracks";
 const DB_VERSION = 1;
 
+type TrackMetadata = Partial<Pick<StoredCrateTrack, "bpm" | "duration" | "key" | "suggestedCue" | "cueConfidence">>;
+
 const openCrate = () => new Promise<IDBDatabase>((resolve, reject) => {
   const request = window.indexedDB.open(DB_NAME, DB_VERSION);
   request.onupgradeneeded = () => {
@@ -54,6 +56,30 @@ export const storeLocalTracks = async (tracks: StoredCrateTrack[]) => {
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error ?? new Error("Unable to save audio in the local crate."));
       transaction.onabort = () => reject(transaction.error ?? new Error("Saving the local crate was interrupted."));
+    });
+  } finally {
+    database.close();
+  }
+};
+
+// Patch the latest record in one transaction so concurrent analysis cannot
+// overwrite a user's BPM correction with metadata from an earlier import.
+export const updateLocalTrackMetadata = async (id: string, metadata: TrackMetadata) => {
+  const database = await openCrate();
+  try {
+    return await new Promise<boolean>((resolve, reject) => {
+      let found = false;
+      const transaction = database.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(id);
+      request.onsuccess = () => {
+        if (!request.result) return;
+        found = true;
+        store.put({ ...request.result, ...metadata });
+      };
+      transaction.oncomplete = () => resolve(found);
+      transaction.onerror = () => reject(transaction.error ?? new Error("Unable to update track metadata."));
+      transaction.onabort = () => reject(transaction.error ?? new Error("Updating track metadata was interrupted."));
     });
   } finally {
     database.close();
