@@ -323,16 +323,18 @@ kbd { font: 600 9px var(--font-geist-mono); color: #777d87; background: var(--pa
 .track-list-heading { display: flex; align-items: center; justify-content: space-between; padding: 12px 2px 8px; color: var(--dim); font: 650 9px var(--font-geist-mono); letter-spacing: 0.75px; }
 .track-list-heading button { display: flex; align-items: center; flex-direction: row-reverse; gap: 3px; border: 0; background: transparent; color: var(--dim); font-size: 9px; cursor: pointer; }
 
-.track-list { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-color: #262c33 transparent; scrollbar-width: thin; padding-bottom: 14px; }
+.track-list { min-height: 0; flex: 1; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-color: #262c33 transparent; scrollbar-width: thin; padding: 0 3px 14px 0; }
 
 .library-track {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) 35px 22px;
+  grid-template-columns: 42px minmax(0, 1fr) 36px;
   gap: 9px;
   align-items: center;
-  border: 1px solid transparent;
+  border: 1px solid var(--line);
   border-radius: 9px;
-  padding: 7px 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+  min-width: 0;
   position: relative;
   transition: 140ms ease;
 }
@@ -367,25 +369,46 @@ kbd { font: 600 9px var(--font-geist-mono); color: #777d87; background: var(--pa
 .library-track-copy { min-width: 0; display: grid; }
 .library-track-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; letter-spacing: -0.15px; }
 .library-track-copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 10px; margin-top: 2px; }
-.library-track-copy small { color: var(--dim); font-size: 8px; margin-top: 2px; }
+.library-track-copy small { color: var(--dim); font-size: 9px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .track-stats { display: grid; gap: 3px; text-align: right; font-family: var(--font-geist-mono); }
 .track-stats strong { color: #bac0c8; font-size: 10px; }
 .track-stats span { color: var(--dim); font-size: 9px; }
 
-.favorite-button { border: 0; background: transparent; color: #505660; display: grid; place-items: center; padding: 3px; cursor: pointer; }
+.favorite-button { border: 0; background: transparent; color: #858c98; display: grid; place-items: center; padding: 0; width: 36px; height: 44px; cursor: pointer; }
 .favorite-button.favorite { color: #f07bbd; }
 
 .load-actions {
-  display: none;
-  position: absolute;
-  right: 6px;
-  gap: 4px;
-  padding-left: 18px;
-  background: linear-gradient(90deg, transparent, #15191e 25%);
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
 }
-.library-track:hover .load-actions { display: flex; }
-.load-actions button { width: 25px; height: 25px; border: 1px solid var(--line-strong); border-radius: 5px; background: #20262d; color: #cfd2d8; cursor: pointer; font: 700 10px var(--font-geist-mono); }
+.load-actions button { width: 100%; min-width: 0; height: 44px; display: flex; align-items: center; justify-content: center; gap: 4px; padding: 0 4px; border: 1px solid var(--line-strong); border-radius: 7px; background: #171d24; color: #cfd2d8; cursor: pointer; font: 650 10px var(--font-geist-sans); touch-action: manipulation; }
+.load-actions button svg { flex: none; }
+.load-actions button:disabled { opacity: 0.45; cursor: default; }
+.load-actions .on-deck, .load-actions .in-queue { opacity: 1; }
+.load-actions .load-a.on-deck, .load-actions .load-a.load-target { color: var(--cyan); border-color: rgba(33,216,232,0.4); background: rgba(33,216,232,0.06); }
+.load-actions .load-b.on-deck, .load-actions .load-b.load-target { color: var(--pink); border-color: rgba(238,76,168,0.4); background: rgba(238,76,168,0.06); }
+.load-actions .in-queue { color: var(--lime); }
+.track-meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: #99a3af; font: 500 9px var(--font-geist-mono); }
+.track-meta > span { padding: 3px 5px; border-radius: 4px; background: var(--panel-3); }
+.track-meta .track-availability { margin-left: auto; font-family: var(--font-geist-sans); }
+.track-availability.playable { color: #a8d8b7; }
+.track-availability.preview { color: #b1a08a; }
+.track-preview-note { grid-column: 1 / -1; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.crate-hint { margin: 0 3px 14px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.crate-load-target { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 10px; border: 1px solid rgba(33,216,232,0.35); border-radius: 8px; background: rgba(33,216,232,0.04); }
+.crate-load-target.target-b { border-color: rgba(238,76,168,0.35); }
+.crate-load-target > div { min-width: 0; display: grid; gap: 4px; }
+.crate-load-target strong { font-size: 11px; color: var(--cyan); }
+.crate-load-target.target-b strong { color: var(--pink); }
+.crate-load-target span { font-size: 10px; line-height: 1.5; color: var(--muted); }
+.crate-load-target button { flex: none; width: 32px; height: 44px; display: grid; place-items: center; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.deck-load-trigger { min-width: 0; width: fit-content; max-width: 100%; min-height: 26px; display: flex; align-items: center; gap: 4px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.deck-load-trigger:hover { color: var(--ink); }
+.deck-load-caption { font: 500 9px var(--font-geist-sans); letter-spacing: 0; }
 .load-actions button:nth-child(1):hover { border-color: var(--cyan); color: var(--cyan); }
 .load-actions button:nth-child(2):hover { border-color: var(--pink); color: var(--pink); }
 .load-actions button:nth-child(3):hover { border-color: var(--lime); color: var(--lime); }
@@ -1265,9 +1288,7 @@ input[type="range"] { appearance: none; background: transparent; margin: 0; }
   .filter-row button { min-height: 40px; padding-inline: 12px; }
   .track-list-heading button { min-height: 36px; }
   .library-track { min-height: 72px; }
-  .favorite-button { width: 38px; height: 44px; padding: 0; }
-  .load-actions { display: flex; gap: 5px; }
-  .load-actions button { width: 36px; height: 36px; }
+  .favorite-button { width: 36px; height: 44px; padding: 0; }
   .dialog-close, .settings-actions button, .reset-deck-button, .auto-cue-card button { min-height: 44px; }
   .dialog-close { width: 44px; }
   .fx-rack-heading button { min-height: 36px; padding-inline: 8px; }

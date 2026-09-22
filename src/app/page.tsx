@@ -495,12 +495,13 @@ function EqKnob({ label, value, onChange, accent }: {
   );
 }
 
-function Deck({ id, state, active, onFocus, onOptions, onToggle, onCue, onSeek, onVolume, onEq, onFx, onLoop, onLoopPoint, onBeatJump, onHotCue, onSync }: {
+function Deck({ id, state, active, onFocus, onOptions, onLoad, onToggle, onCue, onSeek, onVolume, onEq, onFx, onLoop, onLoopPoint, onBeatJump, onHotCue, onSync }: {
   id: DeckId;
   state: DeckState;
   active: boolean;
   onFocus: () => void;
   onOptions: () => void;
+  onLoad: () => void;
   onToggle: () => void;
   onCue: () => void;
   onSeek: (value: number) => void;
@@ -519,7 +520,7 @@ function Deck({ id, state, active, onFocus, onOptions, onToggle, onCue, onSeek, 
   return (
     <section className={`deck deck-${id.toLowerCase()} ${active ? "active-deck" : ""}`} onPointerDown={onFocus}>
       <div className="deck-heading">
-        <span className="deck-label" style={{ "--deck-accent": accent } as CSSProperties}>DECK {id}</span>
+        <button className="deck-label deck-load-trigger" style={{ "--deck-accent": accent } as CSSProperties} onClick={onLoad} aria-label={`Choose track for deck ${id}`}><span>DECK {id}</span><Plus size={12} /><span className="deck-load-caption">Load</span></button>
         <div className="deck-status"><i className={state.playing ? "live" : ""} />{state.playing ? "LIVE" : "READY"}</div>
         <button className="icon-button deck-pad-launcher" onClick={onOptions} aria-label={`Open options for deck ${id}`}><MoreHorizontal size={18} /><span>Pads</span></button>
       </div>
@@ -720,6 +721,7 @@ export default function Home() {
   const [sortMode, setSortMode] = useState<SortMode>("recent");
   const [favorites, setFavorites] = useState<Set<string>>(new Set(["afterglow"]));
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [loadTarget, setLoadTarget] = useState<DeckId | null>(null);
   const [crateDragActive, setCrateDragActive] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -777,6 +779,8 @@ export default function Home() {
   const localTrackUrls = useRef<string[]>([]);
   const liveChannel = useRef<BroadcastChannel | null>(null);
   const searchInput = useRef<HTMLInputElement>(null);
+  const libraryPanel = useRef<HTMLElement>(null);
+  const trackList = useRef<HTMLDivElement>(null);
   const crossfaderValue = useRef(crossfader);
   const queueState = useRef(queue);
   const trackState = useRef(tracks);
@@ -1575,7 +1579,21 @@ export default function Home() {
       hotCues: Array(8).fill(null),
     });
     setActiveDeck(id);
+    setLibraryOpen(false);
+    setLoadTarget(null);
+    setWorkspaceView("Mix");
     setNotice(`${track.title} loaded to Deck ${id}.`);
+  };
+
+  const openDeckLibrary = (id: DeckId) => {
+    setActiveDeck(id);
+    setLoadTarget(id);
+    setFilter("All tracks");
+    setSearch("");
+    setPerformanceMode(false);
+    setLibraryOpen(true);
+    libraryPanel.current?.scrollTo({ top: 0 });
+    trackList.current?.scrollTo({ top: 0 });
   };
 
   const changeDeckRate = (id: DeckId, requested: number) => {
@@ -1655,6 +1673,8 @@ export default function Home() {
       }
       if (event.key === "Escape") {
         setPanel(null);
+        setLibraryOpen(false);
+        setLoadTarget(null);
         return;
       }
       const target = event.target as HTMLElement | null;
@@ -1742,7 +1762,7 @@ export default function Home() {
     }, 250);
   };
 
-  const importLocalFiles = async (files: File[]) => {
+  const importLocalFiles = async (files: File[], target = loadTarget) => {
     const audioFiles = files.filter((file) => file.type.startsWith("audio/") || /\.(mp3|wav|m4a|aac|ogg|flac|webm)$/i.test(file.name));
     if (!audioFiles.length) {
       setNotice("No supported audio files were found in that drop.");
@@ -1786,6 +1806,7 @@ export default function Home() {
     setTracks((current) => [...additions, ...current.filter((track) => !additions.some((item) => item.id === track.id))]);
     setFilter("All tracks");
     setCrateDragActive(false);
+    if (target && additions[0]) loadTrack(target, additions[0]);
     try {
       await storeLocalTracks(storedTracks);
       setNotice(`${additions.length} local ${additions.length === 1 ? "track" : "tracks"} saved. Analyzing key and cue point on-device…`);
@@ -1798,6 +1819,10 @@ export default function Home() {
         const analysis = await analyzeAudioFile(stored.file);
         const analyzed = { duration: analysis.duration, key: analysis.key, suggestedCue: analysis.cuePoint, cueConfidence: analysis.cueConfidence };
         setTracks((current) => current.map((track) => track.id === stored.id ? { ...track, duration: analysis.duration, key: analysis.key, suggestedCue: analysis.cuePoint, cueConfidence: analysis.cueConfidence } : track));
+        setDecks((current) => ({
+          A: current.A.track.id === stored.id ? { ...current.A, track: { ...current.A.track, ...analyzed } } : current.A,
+          B: current.B.track.id === stored.id ? { ...current.B, track: { ...current.B.track, ...analyzed } } : current.B,
+        }));
         await updateLocalTrackMetadata(stored.id, analyzed);
         analyzedLabels.push(`${stored.title}: ${analysis.key} · cue ${formatTime(analysis.cuePoint)}`);
       } catch {
@@ -1884,7 +1909,7 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="mobile-library-toggle"><button aria-controls="music-library" aria-expanded={libraryOpen} onClick={() => setLibraryOpen(!libraryOpen)}><Library size={17} />Music library<ChevronDown size={16} /></button></div>
+      <div className="mobile-library-toggle"><button aria-controls="music-library" aria-expanded={libraryOpen} onClick={() => { setLibraryOpen(!libraryOpen); setLoadTarget(null); }}><Library size={17} />Music library<ChevronDown size={16} /></button></div>
       <nav className="mobile-workspace-tabs" aria-label="Mobile workspace views">
         <button className={workspaceView === "Mix" ? "active" : ""} onClick={() => setWorkspaceView("Mix")}><SlidersHorizontal size={15} />Mix</button>
         <button className={workspaceView === "Queue" ? "active" : ""} onClick={() => setWorkspaceView("Queue")}><ListMusic size={15} />Queue <span>{queue.length}</span></button>
@@ -1892,8 +1917,9 @@ export default function Home() {
       </nav>
 
       <div className="console-layout">
-        <button className="mobile-library-scrim" aria-label="Close music library" onClick={() => setLibraryOpen(false)} />
+        <button className="mobile-library-scrim" aria-label="Close music library" onClick={() => { setLibraryOpen(false); setLoadTarget(null); }} />
         <aside
+          ref={libraryPanel}
           id="music-library"
           className={`library-panel ${libraryOpen ? "mobile-open" : ""} ${crateDragActive ? "drop-active" : ""}`}
           onDragEnter={(event) => { event.preventDefault(); setCrateDragActive(true); }}
@@ -1911,8 +1937,14 @@ export default function Home() {
           <div className="crate-drop-overlay" aria-hidden={!crateDragActive}><Upload size={28} /><strong>Drop audio into your crate</strong><span>Files stay in this browser</span></div>
           <div className="library-heading">
             <div><span className="eyebrow">YOUR CRATE</span><h1>Music library</h1></div>
-            <label className="upload-button"><Upload size={16} />Import<input type="file" accept="audio/*" multiple onChange={handleUpload} /></label>
+            <label className="upload-button"><Upload size={16} />{loadTarget ? `Import to ${loadTarget}` : "Import"}<input type="file" accept="audio/*" multiple onChange={handleUpload} /></label>
           </div>
+          {loadTarget ? (
+            <div className={`crate-load-target target-${loadTarget.toLowerCase()}`}>
+              <div><strong>Choose a track for Deck {loadTarget}</strong><span>Tap Load {loadTarget}, or import audio straight to this deck.</span></div>
+              <button onClick={() => setLoadTarget(null)} aria-label="Cancel deck selection"><X size={16} /></button>
+            </div>
+          ) : <p className="crate-hint">Load a track to A or B, then press Play. Queue keeps it ready for later.</p>}
           <label className="search-box"><Search size={17} /><input ref={searchInput} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tracks or artists" /><kbd>Ctrl K</kbd></label>
 
           <nav className="library-nav" aria-label="Library categories">
@@ -1927,18 +1959,32 @@ export default function Home() {
           <div className="filter-row">{["High", "Medium", "Low"].map((value) => <button key={value} className={filter === value ? "active" : ""} onClick={() => setFilter(filter === value ? "All tracks" : value)}>{value}</button>)}</div>
 
           <div className="track-list-heading"><span>{filteredTracks.length} TRACKS</span><button onClick={() => setSortMode((current) => current === "recent" ? "title" : current === "title" ? "bpm" : "recent")} aria-label={`Sort library. Current sort: ${SORT_LABELS[sortMode]}`}><ChevronDown size={14} />{SORT_LABELS[sortMode]}</button></div>
-          <div className="track-list">
+          <div className="track-list" ref={trackList}>
             {filteredTracks.map((track) => (
-              <article className={`library-track ${decks.A.track.id === track.id || decks.B.track.id === track.id ? "loaded" : ""}`} key={track.id}>
+              <article className={`library-track ${decks.A.track.id === track.id || decks.B.track.id === track.id ? "loaded" : ""}`} key={track.id} aria-label={`${track.title} by ${track.artist}`}>
                 <Cover track={track} small />
-                <div className="library-track-copy"><strong>{track.title}</strong><span>{track.artist}</span><small>{track.genre}{track.suggestedCue !== undefined ? ` · Cue ${formatTime(track.suggestedCue)}` : ""}</small></div>
-                <div className="track-stats"><strong>{track.bpm}</strong><span>{track.key}</span></div>
+                <div className="library-track-copy"><strong title={track.title}>{track.title}</strong><span title={track.artist}>{track.artist}</span><small>{track.genre}</small></div>
                 <button className={`favorite-button ${favorites.has(track.id) ? "favorite" : ""}`} onClick={() => setFavorites((current) => {
                   const next = new Set(current);
                   if (next.has(track.id)) next.delete(track.id); else next.add(track.id);
                   return next;
                 })} aria-label={`${favorites.has(track.id) ? "Remove" : "Add"} ${track.title} ${favorites.has(track.id) ? "from" : "to"} favorites`}><Heart size={14} fill={favorites.has(track.id) ? "currentColor" : "none"} /></button>
-                <div className="load-actions"><button onClick={() => loadTrack("A", track)} aria-label={`Load ${track.title} to deck A`}>A</button><button onClick={() => loadTrack("B", track)} aria-label={`Load ${track.title} to deck B`}>B</button><button onClick={() => addToQueue(track)} aria-label={`Add ${track.title} to queue`}>Q</button></div>
+                <div className="track-meta">
+                  <span>{track.bpm} BPM</span><span>{track.key}</span><span>{formatTime(track.duration)}</span>
+                  <span className={`track-availability ${track.url ? "playable" : "preview"}`}>{track.url ? track.source === "Local" ? "Local audio" : "Demo audio" : "Preview only"}</span>
+                </div>
+                <div className="load-actions" role="group" aria-label={`Load or queue ${track.title}`}>
+                  {(["A", "B"] as const).map((id) => (
+                    <button key={id} className={`load-${id.toLowerCase()} ${loadTarget === id ? "load-target" : ""} ${decks[id].track.id === track.id ? "on-deck" : ""}`}
+                      disabled={!track.url || decks[id].track.id === track.id} onClick={() => loadTrack(id, track)} aria-label={`Load ${track.title} to deck ${id}`}>
+                      {decks[id].track.id === track.id ? <><CheckCircle2 size={12} />On {id}</> : <><Plus size={12} />Load {id}</>}
+                    </button>
+                  ))}
+                  <button className={queue.includes(track.id) ? "in-queue" : ""} disabled={!track.url || queue.includes(track.id)} onClick={() => addToQueue(track)} aria-label={`Add ${track.title} to queue`}>
+                    {queue.includes(track.id) ? <><CheckCircle2 size={12} />Queued</> : <><ListMusic size={12} />Queue</>}
+                  </button>
+                </div>
+                {!track.url && <span className="track-preview-note">Import your audio to mix. This catalog preview has no audio.</span>}
               </article>
             ))}
             {!filteredTracks.length && <div className="empty-state"><Disc3 size={28} /><strong>No tracks here yet</strong><span>Try a different filter or import audio.</span></div>}
@@ -1950,7 +1996,7 @@ export default function Home() {
           <div className="session-bar"><div><span className="session-dot" />LOCAL SESSION</div><span aria-live="polite">{notice}</span><div className="session-actions">{savedSet && <button onClick={restoreSet}><RotateCcw size={13} />Restore</button>}<button onClick={saveSet}><Plus size={14} />Save set</button></div></div>
 
           {workspaceView === "Mix" && <div className="decks-grid">
-            <Deck id="A" state={decks.A} active={activeDeck === "A"} onFocus={() => setActiveDeck("A")} onOptions={() => setPanel("deck-A")} onToggle={() => void toggleDeck("A")} onCue={() => cueDeck("A")} onSeek={(value) => seekDeck("A", value)} onVolume={(volume) => updateDeck("A", { volume })} onEq={(band, value) => updateDeck("A", { eq: { ...decks.A.eq, [band]: value } })} onFx={(effect, value) => updateDeck("A", { fx: { ...decks.A.fx, [effect]: value } })} onLoop={(beats) => toggleLoop("A", beats)} onLoopPoint={(point) => setManualLoopPoint("A", point)} onBeatJump={(beats) => beatJumpDeck("A", beats)} onHotCue={(index, clear) => triggerHotCue("A", index, clear)} onSync={() => syncDeck("A")} />
+            <Deck id="A" state={decks.A} active={activeDeck === "A"} onFocus={() => setActiveDeck("A")} onOptions={() => setPanel("deck-A")} onLoad={() => openDeckLibrary("A")} onToggle={() => void toggleDeck("A")} onCue={() => cueDeck("A")} onSeek={(value) => seekDeck("A", value)} onVolume={(volume) => updateDeck("A", { volume })} onEq={(band, value) => updateDeck("A", { eq: { ...decks.A.eq, [band]: value } })} onFx={(effect, value) => updateDeck("A", { fx: { ...decks.A.fx, [effect]: value } })} onLoop={(beats) => toggleLoop("A", beats)} onLoopPoint={(point) => setManualLoopPoint("A", point)} onBeatJump={(beats) => beatJumpDeck("A", beats)} onHotCue={(index, clear) => triggerHotCue("A", index, clear)} onSync={() => syncDeck("A")} />
 
             <section className="mixer-strip">
               <div className="master-heading"><AudioLines size={17} /><span>MASTER</span><i className={decks.A.playing || decks.B.playing ? "on" : ""} /></div>
@@ -1975,7 +2021,7 @@ export default function Home() {
               </div>
             </section>
 
-            <Deck id="B" state={decks.B} active={activeDeck === "B"} onFocus={() => setActiveDeck("B")} onOptions={() => setPanel("deck-B")} onToggle={() => void toggleDeck("B")} onCue={() => cueDeck("B")} onSeek={(value) => seekDeck("B", value)} onVolume={(volume) => updateDeck("B", { volume })} onEq={(band, value) => updateDeck("B", { eq: { ...decks.B.eq, [band]: value } })} onFx={(effect, value) => updateDeck("B", { fx: { ...decks.B.fx, [effect]: value } })} onLoop={(beats) => toggleLoop("B", beats)} onLoopPoint={(point) => setManualLoopPoint("B", point)} onBeatJump={(beats) => beatJumpDeck("B", beats)} onHotCue={(index, clear) => triggerHotCue("B", index, clear)} onSync={() => syncDeck("B")} />
+            <Deck id="B" state={decks.B} active={activeDeck === "B"} onFocus={() => setActiveDeck("B")} onOptions={() => setPanel("deck-B")} onLoad={() => openDeckLibrary("B")} onToggle={() => void toggleDeck("B")} onCue={() => cueDeck("B")} onSeek={(value) => seekDeck("B", value)} onVolume={(volume) => updateDeck("B", { volume })} onEq={(band, value) => updateDeck("B", { eq: { ...decks.B.eq, [band]: value } })} onFx={(effect, value) => updateDeck("B", { fx: { ...decks.B.fx, [effect]: value } })} onLoop={(beats) => toggleLoop("B", beats)} onLoopPoint={(point) => setManualLoopPoint("B", point)} onBeatJump={(beats) => beatJumpDeck("B", beats)} onHotCue={(index, clear) => triggerHotCue("B", index, clear)} onSync={() => syncDeck("B")} />
           </div>}
 
           {workspaceView === "Queue" && (

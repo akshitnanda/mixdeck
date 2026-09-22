@@ -40,6 +40,10 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Touch Controls
 
+Each library track has always-visible **Load A**, **Load B**, and **Queue** buttons, with loaded and queued states. Track details sit above the actions so they remain readable on narrow screens. Preview-only tracks explain why they cannot be loaded.
+
+Tap **Load** in either deck heading to choose a track for that deck. **Import to A/B** loads the first selected audio file directly and adds any remaining files to the crate. Loading returns mobile users to the Mix workspace; dismissing the library cancels the import target.
+
 Tap **Pads** in a deck heading (the options button on desktop) to open its performance panel. Tap an empty cue pad to save the current position, then tap it again to jump back. Choose **Clear cues**, tap the saved pads to remove, and choose **Done clearing** to return to playback controls.
 
 The **Loops & jumps** bank provides 1–32 beat loops and four- or sixteen-beat jumps. **Exit loop** releases a running loop. Expand **Track details, auto cue & effects** for the cue suggestion and full effect rack. These panels scroll within the screen in landscape.
