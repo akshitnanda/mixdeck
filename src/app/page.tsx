@@ -47,11 +47,12 @@ import { getMixCompatibility } from "./_lib/mix-compatibility";
 import { usePwa } from "./_components/pwa-provider";
 import { PerformancePads } from "./_components/performance-pads";
 import { beatSeconds, clampRate, matchingRate } from "./_lib/tempo";
+import { needsLoadConfirmation } from "./_lib/load-safety";
 
 type DeckId = "A" | "B";
 type WorkspaceView = "Mix" | "Queue" | "Record";
 type SortMode = "recent" | "title" | "bpm";
-type PanelView = "help" | "settings" | "profile" | "deck-A" | "deck-B" | null;
+type PanelView = "help" | "settings" | "profile" | "deck-A" | "deck-B" | "confirm-load" | null;
 type FxName = "filter" | "delay" | "reverb" | "flanger" | "distortion" | "phaser" | "tremolo" | "compressor";
 type FxState = Record<FxName, number>;
 
@@ -722,6 +723,9 @@ export default function Home() {
   const [favorites, setFavorites] = useState<Set<string>>(new Set(["afterglow"]));
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [loadTarget, setLoadTarget] = useState<DeckId | null>(null);
+  const [pendingLoad, setPendingLoad] = useState<{ id: DeckId; track: Track; replacingId: string } | null>(null);
+  const alternateLoadDeck: DeckId = pendingLoad?.id === "A" ? "B" : "A";
+  const alternateLoadAvailable = !decks[alternateLoadDeck].playing && decks[alternateLoadDeck].track.id !== pendingLoad?.track.id;
   const [crateDragActive, setCrateDragActive] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -1560,12 +1564,19 @@ export default function Home() {
     if (autoDjState.current && !autoDjTransitioning.current) void advanceAutoDj(id);
   };
 
-  const loadTrack = (id: DeckId, track: Track) => {
+  const loadTrack = (id: DeckId, requestedTrack: Track, confirmedTrackId?: string) => {
+    const track = trackState.current.find((item) => item.id === requestedTrack.id) ?? requestedTrack;
     if (!track.url) {
       setNotice("This catalog row is a product preview. Upload audio to make it playable.");
       return;
     }
     const element = id === "A" ? audioA.current : audioB.current;
+    const current = deckState.current[id];
+    if (needsLoadConfirmation(current.playing, Boolean(element && !element.paused && !element.ended), current.track.id, confirmedTrackId)) {
+      setPendingLoad({ id, track, replacingId: current.track.id });
+      setPanel("confirm-load");
+      return;
+    }
     if (element) {
       element.pause();
       element.currentTime = 0;
@@ -1579,6 +1590,8 @@ export default function Home() {
       hotCues: Array(8).fill(null),
     });
     setActiveDeck(id);
+    setPendingLoad(null);
+    setPanel(null);
     setLibraryOpen(false);
     setLoadTarget(null);
     setWorkspaceView("Mix");
@@ -2144,11 +2157,24 @@ export default function Home() {
           <section ref={dialogRef} className="app-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
             <header className="dialog-header">
               <div>
-                <span className="eyebrow">{panel.startsWith("deck-") ? "DECK CONTROL" : "MIXDECK LOCAL"}</span>
-                <h2 id="dialog-title">{panel === "help" ? "Get mixing fast" : panel === "settings" ? "Session settings" : panel === "profile" ? "Local DJ profile" : `Deck ${panel.slice(-1)} options`}</h2>
+                <span className="eyebrow">{panel === "confirm-load" ? "PLAYBACK PROTECTION" : panel.startsWith("deck-") ? "DECK CONTROL" : "MIXDECK LOCAL"}</span>
+                <h2 id="dialog-title">{panel === "confirm-load" ? `Replace track on Deck ${pendingLoad?.id}?` : panel === "help" ? "Get mixing fast" : panel === "settings" ? "Session settings" : panel === "profile" ? "Local DJ profile" : `Deck ${panel.slice(-1)} options`}</h2>
               </div>
               <button className="dialog-close" onClick={() => setPanel(null)} aria-label="Close dialog"><X size={18} /></button>
             </header>
+
+            {panel === "confirm-load" && pendingLoad && (
+              <div className="dialog-content load-confirmation">
+                <p className="dialog-lede">Deck {pendingLoad.id} {decks[pendingLoad.id].playing ? "is playing" : "currently holds"} <strong>{decks[pendingLoad.id].track.title}</strong>. Loading another track stops it and resets its tempo, loop, and hot cues.</p>
+                <div className="load-selection"><span>READY TO LOAD</span><strong>{pendingLoad.track.title}</strong><small>{pendingLoad.track.artist}</small></div>
+                <p className="settings-note">This prompt does not pause playback. Imported files stay in your crate even if you cancel.</p>
+                <div className="load-confirm-actions">
+                  <button onClick={() => setPanel(null)}>Keep playing</button>
+                  {alternateLoadAvailable && <button onClick={() => loadTrack(alternateLoadDeck, pendingLoad.track)}>Load paused Deck {alternateLoadDeck}</button>}
+                  <button className="replace-playing" onClick={() => loadTrack(pendingLoad.id, pendingLoad.track, pendingLoad.replacingId)}>Stop &amp; replace Deck {pendingLoad.id}</button>
+                </div>
+              </div>
+            )}
 
             {panel === "help" && (
               <div className="dialog-content">

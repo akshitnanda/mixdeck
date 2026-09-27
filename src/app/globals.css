@@ -467,6 +467,15 @@ kbd { font: 600 9px var(--font-geist-mono); color: #777d87; background: var(--pa
 .dialog-close:hover { color: var(--ink); background: var(--panel-3); }
 .dialog-content { padding: 20px; }
 .dialog-lede, .settings-note { color: var(--muted); line-height: 1.6; margin: 0; }
+.load-confirmation { display: grid; gap: 16px; overflow-wrap: anywhere; }
+.load-confirmation .dialog-lede strong { color: var(--ink); }
+.load-selection { display: grid; gap: 5px; padding: 14px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-3); }
+.load-selection span { color: var(--cyan); font: 600 9px var(--font-geist-mono); letter-spacing: 1px; }
+.load-selection small { color: var(--muted); }
+.load-confirm-actions { display: grid; gap: 8px; }
+.load-confirm-actions button { min-height: 44px; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--panel-3); color: var(--ink); font: inherit; cursor: pointer; touch-action: manipulation; }
+.load-confirm-actions button:hover { border-color: var(--cyan); }
+.load-confirm-actions .replace-playing { color: #ffbecf; border-color: #784150; background: #311c25; }
 
 .quickstart-list { list-style: none; padding: 0; margin: 20px 0; display: grid; gap: 8px; }
 .quickstart-list li { min-height: 58px; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255, 255, 255, 0.018); }
