@@ -42,6 +42,8 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Each library track has always-visible **Load A**, **Load B**, and **Queue** buttons, with loaded and queued states. Track details sit above the actions so they remain readable on narrow screens. Preview-only tracks explain why they cannot be loaded.
 
+Use **Playable only** to hide catalog previews. Combine energy with **Favorites** or **Local files**, and search by title, artist, genre, BPM, or key (for example, `house 128`). The sort menu offers title, recently added, and both BPM directions. The result count shows matching versus total tracks; **Clear filters** restores the full crate without changing your sort order.
+
 Tap **Load** in either deck heading to choose a track for that deck. **Import to A/B** loads the first selected audio file directly and adds any remaining files to the crate. Loading returns mobile users to the Mix workspace; dismissing the library cancels the import target.
 
 Manual loading protects a playing deck: choose **Keep playing**, load the other paused deck when available, or explicitly **Stop & replace**. Playback continues while the prompt is open. Imported files remain in the crate if you cancel; paused decks still load immediately. This guard covers library and targeted-import loading, not intentional queue playback or AutoDJ transitions.

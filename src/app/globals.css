@@ -310,6 +310,7 @@ kbd { font: 600 9px var(--font-geist-mono); color: #777d87; background: var(--pa
 
 .filter-row { display: flex; gap: 6px; padding: 12px 0 6px; }
 .filter-row button {
+  min-height: 44px;
   border: 1px solid var(--line);
   background: transparent;
   color: var(--muted);
@@ -320,8 +321,12 @@ kbd { font: 600 9px var(--font-geist-mono); color: #777d87; background: var(--pa
 }
 .filter-row button:hover, .filter-row button.active { color: var(--ink); background: var(--panel-3); border-color: var(--line-strong); }
 
-.track-list-heading { display: flex; align-items: center; justify-content: space-between; padding: 12px 2px 8px; color: var(--dim); font: 650 9px var(--font-geist-mono); letter-spacing: 0.75px; }
-.track-list-heading button { display: flex; align-items: center; flex-direction: row-reverse; gap: 3px; border: 0; background: transparent; color: var(--dim); font-size: 9px; cursor: pointer; }
+.library-filter-tools { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0; }
+.library-filter-tools button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 44px; padding: 0 10px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; font-size: 10px; touch-action: manipulation; }
+.library-filter-tools button.active { color: var(--cyan); background: rgba(33,216,232,0.08); border-color: rgba(33,216,232,0.4); }
+.library-filter-tools button:disabled { opacity: 0.4; cursor: default; }
+.track-list-heading { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: space-between; padding: 8px 2px; color: var(--muted); font: 650 9px var(--font-geist-mono); letter-spacing: 0.5px; }
+.track-list-heading select { min-width: 0; max-width: 100%; min-height: 44px; padding: 0 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-3); color: var(--ink); font: 500 10px var(--font-geist-sans); cursor: pointer; }
 
 .track-list { min-height: 0; flex: 1; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-color: #262c33 transparent; scrollbar-width: thin; padding: 0 3px 14px 0; }
 
@@ -1294,8 +1299,7 @@ input[type="range"] { appearance: none; background: transparent; margin: 0; }
   .deck-pad-launcher span { display: inline; font-size: 10px; font-weight: 700; color: var(--cyan); }
   button, a, .upload-button { touch-action: manipulation; }
   .library-nav button { min-height: 44px; }
-  .filter-row button { min-height: 40px; padding-inline: 12px; }
-  .track-list-heading button { min-height: 36px; }
+  .filter-row button { min-height: 44px; padding-inline: 12px; }
   .library-track { min-height: 72px; }
   .favorite-button { width: 36px; height: 44px; padding: 0; }
   .dialog-close, .settings-actions button, .reset-deck-button, .auto-cue-card button { min-height: 44px; }

@@ -48,10 +48,10 @@ import { usePwa } from "./_components/pwa-provider";
 import { PerformancePads } from "./_components/performance-pads";
 import { beatSeconds, clampRate, matchingRate } from "./_lib/tempo";
 import { needsLoadConfirmation } from "./_lib/load-safety";
+import { filterLibrary, type LibrarySort, type LibraryEnergy } from "./_lib/library";
 
 type DeckId = "A" | "B";
 type WorkspaceView = "Mix" | "Queue" | "Record";
-type SortMode = "recent" | "title" | "bpm";
 type PanelView = "help" | "settings" | "profile" | "deck-A" | "deck-B" | "confirm-load" | null;
 type FxName = "filter" | "delay" | "reverb" | "flanger" | "distortion" | "phaser" | "tremolo" | "compressor";
 type FxState = Record<FxName, number>;
@@ -132,7 +132,7 @@ type SavedSet = {
 };
 
 const SET_STORAGE_KEY = "mixdeck-saved-set";
-const SORT_LABELS: Record<SortMode, string> = { recent: "Recently added", title: "Track title", bpm: "BPM" };
+const SORT_LABELS: Record<LibrarySort, string> = { recent: "Recently added", title: "Track title", bpm: "BPM: high to low", "bpm-asc": "BPM: low to high" };
 const FX_NAMES: FxName[] = ["filter", "delay", "reverb", "flanger", "distortion", "phaser", "tremolo", "compressor"];
 const FX_LABELS: Record<FxName, string> = { filter: "Filter", delay: "Delay", reverb: "Reverb", flanger: "Flanger", distortion: "Drive", phaser: "Phaser", tremolo: "Tremolo", compressor: "Comp" };
 const defaultFx = (): FxState => ({ filter: 0, delay: 0, reverb: 0, flanger: 0, distortion: 0, phaser: 0, tremolo: 0, compressor: 0 });
@@ -719,7 +719,9 @@ export default function Home() {
   const [masterLevel, setMasterLevel] = useState(0.05);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All tracks");
-  const [sortMode, setSortMode] = useState<SortMode>("recent");
+  const [sortMode, setSortMode] = useState<LibrarySort>("recent");
+  const [energyFilter, setEnergyFilter] = useState<LibraryEnergy | null>(null);
+  const [playableOnly, setPlayableOnly] = useState(false);
   const [favorites, setFavorites] = useState<Set<string>>(new Set(["afterglow"]));
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [loadTarget, setLoadTarget] = useState<DeckId | null>(null);
@@ -907,22 +909,15 @@ export default function Home() {
   }, [queue]);
 
   const filteredTracks = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    const matches = tracks.filter((track) => {
-      const matchesSearch = !query || `${track.title} ${track.artist} ${track.genre}`.toLowerCase().includes(query);
-      const matchesFilter = filter === "All tracks"
-        || (filter === "Favorites" && favorites.has(track.id))
-        || (filter === "Local files" && track.source === "Local")
-        || filter === track.energy
-        || filter === track.genre;
-      return matchesSearch && matchesFilter;
-    });
-    return matches.sort((left, right) => {
-      if (sortMode === "title") return left.title.localeCompare(right.title);
-      if (sortMode === "bpm") return right.bpm - left.bpm;
-      return tracks.indexOf(left) - tracks.indexOf(right);
-    });
-  }, [favorites, filter, search, sortMode, tracks]);
+    return filterLibrary(tracks, { search, category: filter, energy: energyFilter, playableOnly, favorites, sort: sortMode });
+  }, [favorites, filter, search, sortMode, tracks, energyFilter, playableOnly]);
+  const hasLibraryFilters = Boolean(search.trim() || filter !== "All tracks" || energyFilter || playableOnly);
+  const clearLibraryFilters = () => {
+    setSearch("");
+    setFilter("All tracks");
+    setEnergyFilter(null);
+    setPlayableOnly(false);
+  };
 
   const queueTracks = useMemo(() => queue
     .map((trackId) => tracks.find((track) => track.id === trackId))
@@ -1603,6 +1598,7 @@ export default function Home() {
     setLoadTarget(id);
     setFilter("All tracks");
     setSearch("");
+    setEnergyFilter(null);
     setPerformanceMode(false);
     setLibraryOpen(true);
     libraryPanel.current?.scrollTo({ top: 0 });
@@ -1818,6 +1814,8 @@ export default function Home() {
     });
     setTracks((current) => [...additions, ...current.filter((track) => !additions.some((item) => item.id === track.id))]);
     setFilter("All tracks");
+    setEnergyFilter(null);
+    setSearch("");
     setCrateDragActive(false);
     if (target && additions[0]) loadTrack(target, additions[0]);
     try {
@@ -1958,20 +1956,24 @@ export default function Home() {
               <button onClick={() => setLoadTarget(null)} aria-label="Cancel deck selection"><X size={16} /></button>
             </div>
           ) : <p className="crate-hint">Load a track to A or B, then press Play. Queue keeps it ready for later.</p>}
-          <label className="search-box"><Search size={17} /><input ref={searchInput} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tracks or artists" /><kbd>Ctrl K</kbd></label>
+          <label className="search-box"><Search size={17} /><input ref={searchInput} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tracks, BPM or key" aria-label="Search music library" /><kbd>Ctrl K</kbd></label>
 
           <nav className="library-nav" aria-label="Library categories">
             {[{ label: "All tracks", icon: Library }, { label: "Favorites", icon: Heart }, { label: "Local files", icon: FolderOpen }].map(({ label, icon: Icon }) => (
-              <button key={label} className={filter === label ? "active" : ""} onClick={() => setFilter(label)}>
+              <button key={label} className={filter === label ? "active" : ""} aria-pressed={filter === label} onClick={() => setFilter(label)}>
                 <Icon size={16} fill={label === "Favorites" && filter === label ? "currentColor" : "none"} />{label}
                 <span>{label === "All tracks" ? tracks.length : label === "Favorites" ? favorites.size : tracks.filter((track) => track.source === "Local").length}</span>
               </button>
             ))}
           </nav>
 
-          <div className="filter-row">{["High", "Medium", "Low"].map((value) => <button key={value} className={filter === value ? "active" : ""} onClick={() => setFilter(filter === value ? "All tracks" : value)}>{value}</button>)}</div>
+          <div className="filter-row" role="group" aria-label="Filter by energy">{(["High", "Medium", "Low"] as const).map((value) => <button key={value} className={energyFilter === value ? "active" : ""} aria-pressed={energyFilter === value} onClick={() => setEnergyFilter(energyFilter === value ? null : value)}>{value}</button>)}</div>
+          <div className="library-filter-tools">
+            <button className={playableOnly ? "active" : ""} aria-pressed={playableOnly} onClick={() => setPlayableOnly(!playableOnly)}><Play size={13} />Playable only</button>
+            <button onClick={clearLibraryFilters} disabled={!hasLibraryFilters}>Clear filters</button>
+          </div>
 
-          <div className="track-list-heading"><span>{filteredTracks.length} TRACKS</span><button onClick={() => setSortMode((current) => current === "recent" ? "title" : current === "title" ? "bpm" : "recent")} aria-label={`Sort library. Current sort: ${SORT_LABELS[sortMode]}`}><ChevronDown size={14} />{SORT_LABELS[sortMode]}</button></div>
+          <div className="track-list-heading"><span role="status">{filteredTracks.length} OF {tracks.length} TRACKS</span><select aria-label="Sort library" value={sortMode} onChange={(event) => setSortMode(event.target.value as LibrarySort)}>{Object.entries(SORT_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
           <div className="track-list" ref={trackList}>
             {filteredTracks.map((track) => (
               <article className={`library-track ${decks.A.track.id === track.id || decks.B.track.id === track.id ? "loaded" : ""}`} key={track.id} aria-label={`${track.title} by ${track.artist}`}>
@@ -2000,7 +2002,7 @@ export default function Home() {
                 {!track.url && <span className="track-preview-note">Import your audio to mix. This catalog preview has no audio.</span>}
               </article>
             ))}
-            {!filteredTracks.length && <div className="empty-state"><Disc3 size={28} /><strong>No tracks here yet</strong><span>Try a different filter or import audio.</span></div>}
+            {!filteredTracks.length && <div className="empty-state"><Disc3 size={28} /><strong>{hasLibraryFilters ? "No matching tracks" : "No tracks here yet"}</strong><span>{hasLibraryFilters ? "Clear filters above or import audio to expand your crate." : "Import audio to start building your crate."}</span></div>}
           </div>
           <div className="library-footer"><Sparkles size={15} /><span>Demo audio is generated on-device.</span></div>
         </aside>
@@ -2105,7 +2107,7 @@ export default function Home() {
                       </article>
                     );
                   })}
-                  {!queueTracks.length && <div className="empty-state queue-empty"><ListMusic size={32} /><strong>Your next move starts here</strong><span>Hover a library track and press Q to build the set.</span></div>}
+                  {!queueTracks.length && <div className="empty-state queue-empty"><ListMusic size={32} /><strong>Your next move starts here</strong><span>Tap Queue on a playable library track to build your set.</span></div>}
                 </div>
               </div>
             </section>

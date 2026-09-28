@@ -34,7 +34,7 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Test audio analysis
+      - name: Test audio and library behavior
         run: npm run test:audio
 
       - name: Build
