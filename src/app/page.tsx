@@ -49,6 +49,7 @@ import { PerformancePads } from "./_components/performance-pads";
 import { beatSeconds, clampRate, matchingRate } from "./_lib/tempo";
 import { needsLoadConfirmation } from "./_lib/load-safety";
 import { filterLibrary, type LibrarySort, type LibraryEnergy } from "./_lib/library";
+import { LIBRARY_PREFERENCES_KEY, readLibraryPreferences, saveLibraryPreferences } from "./_lib/library-preferences";
 
 type DeckId = "A" | "B";
 type WorkspaceView = "Mix" | "Queue" | "Record";
@@ -723,6 +724,8 @@ export default function Home() {
   const [energyFilter, setEnergyFilter] = useState<LibraryEnergy | null>(null);
   const [playableOnly, setPlayableOnly] = useState(false);
   const [favorites, setFavorites] = useState<Set<string>>(new Set(["afterglow"]));
+  const [libraryPreferencesReady, setLibraryPreferencesReady] = useState(false);
+  const [libraryPreferencesSaved, setLibraryPreferencesSaved] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [loadTarget, setLoadTarget] = useState<DeckId | null>(null);
   const [pendingLoad, setPendingLoad] = useState<{ id: DeckId; track: Track; replacingId: string } | null>(null);
@@ -907,6 +910,29 @@ export default function Home() {
     }
     window.localStorage.setItem("mixdeck-queue", JSON.stringify(queue));
   }, [queue]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const { preferences, available } = readLibraryPreferences(() => window.localStorage.getItem(LIBRARY_PREFERENCES_KEY));
+      setFavorites(new Set(preferences.favorites));
+      setFilter(preferences.category);
+      setEnergyFilter(preferences.energy);
+      setSortMode(preferences.sort);
+      setPlayableOnly(preferences.playableOnly);
+      setLibraryPreferencesSaved(available);
+      setLibraryPreferencesReady(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!libraryPreferencesReady) return;
+    const timer = window.setTimeout(() => {
+      setLibraryPreferencesSaved(saveLibraryPreferences({ version: 1, favorites: [...favorites], category: filter, energy: energyFilter, sort: sortMode, playableOnly },
+        (value) => window.localStorage.setItem(LIBRARY_PREFERENCES_KEY, value)));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [libraryPreferencesReady, favorites, filter, energyFilter, sortMode, playableOnly]);
 
   const filteredTracks = useMemo(() => {
     return filterLibrary(tracks, { search, category: filter, energy: energyFilter, playableOnly, favorites, sort: sortMode });
@@ -1962,7 +1988,7 @@ export default function Home() {
             {[{ label: "All tracks", icon: Library }, { label: "Favorites", icon: Heart }, { label: "Local files", icon: FolderOpen }].map(({ label, icon: Icon }) => (
               <button key={label} className={filter === label ? "active" : ""} aria-pressed={filter === label} onClick={() => setFilter(label)}>
                 <Icon size={16} fill={label === "Favorites" && filter === label ? "currentColor" : "none"} />{label}
-                <span>{label === "All tracks" ? tracks.length : label === "Favorites" ? favorites.size : tracks.filter((track) => track.source === "Local").length}</span>
+                <span>{label === "All tracks" ? tracks.length : label === "Favorites" ? tracks.filter((track) => favorites.has(track.id)).length : tracks.filter((track) => track.source === "Local").length}</span>
               </button>
             ))}
           </nav>
@@ -2004,7 +2030,7 @@ export default function Home() {
             ))}
             {!filteredTracks.length && <div className="empty-state"><Disc3 size={28} /><strong>{hasLibraryFilters ? "No matching tracks" : "No tracks here yet"}</strong><span>{hasLibraryFilters ? "Clear filters above or import audio to expand your crate." : "Import audio to start building your crate."}</span></div>}
           </div>
-          <div className="library-footer"><Sparkles size={15} /><span>Demo audio is generated on-device.</span></div>
+          <div className="library-footer"><ShieldCheck size={15} /><span>{!libraryPreferencesReady ? "Restoring crate preferences…" : libraryPreferencesSaved ? "Favorites & filters saved on this device." : "Preferences are temporary: browser storage unavailable."}</span></div>
         </aside>
 
         <section className="mix-workspace">
