@@ -789,7 +789,19 @@ export default function Home() {
   const liveChannel = useRef<BroadcastChannel | null>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const libraryPanel = useRef<HTMLElement>(null);
+  const libraryCloseButton = useRef<HTMLButtonElement>(null);
+  const focusLibrarySearch = useRef(false);
   const trackList = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!libraryOpen || !window.matchMedia("(max-width: 1050px)").matches) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const focusFrame = window.requestAnimationFrame(() => (focusLibrarySearch.current ? searchInput.current : libraryCloseButton.current)?.focus({ preventScroll: true }));
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+    };
+  }, [libraryOpen]);
   const crossfaderValue = useRef(crossfader);
   const queueState = useRef(queue);
   const trackState = useRef(tracks);
@@ -1620,6 +1632,7 @@ export default function Home() {
   };
 
   const openDeckLibrary = (id: DeckId) => {
+    focusLibrarySearch.current = false;
     setActiveDeck(id);
     setLoadTarget(id);
     setFilter("All tracks");
@@ -1702,6 +1715,7 @@ export default function Home() {
       if ((event.target as HTMLElement | null)?.closest("[role='dialog']") && event.key !== "Escape") return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
+        focusLibrarySearch.current = true;
         setLibraryOpen(true);
         searchInput.current?.focus();
         return;
@@ -1946,7 +1960,7 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="mobile-library-toggle"><button aria-controls="music-library" aria-expanded={libraryOpen} onClick={() => { setLibraryOpen(!libraryOpen); setLoadTarget(null); }}><Library size={17} />Music library<ChevronDown size={16} /></button></div>
+      <div className="mobile-library-toggle"><button aria-controls="music-library" aria-expanded={libraryOpen} onClick={() => { focusLibrarySearch.current = false; setLibraryOpen(!libraryOpen); setLoadTarget(null); }}><Library size={17} />Music library<ChevronDown size={16} /></button></div>
       <nav className="mobile-workspace-tabs" aria-label="Mobile workspace views">
         <button className={workspaceView === "Mix" ? "active" : ""} onClick={() => setWorkspaceView("Mix")}><SlidersHorizontal size={15} />Mix</button>
         <button className={workspaceView === "Queue" ? "active" : ""} onClick={() => setWorkspaceView("Queue")}><ListMusic size={15} />Queue <span>{queue.length}</span></button>
@@ -1959,6 +1973,20 @@ export default function Home() {
           ref={libraryPanel}
           id="music-library"
           className={`library-panel ${libraryOpen ? "mobile-open" : ""} ${crateDragActive ? "drop-active" : ""}`}
+          onTransitionEnd={(event) => {
+            if (event.target === event.currentTarget && event.propertyName === "transform" && libraryOpen && !event.currentTarget.contains(document.activeElement)) {
+              (focusLibrarySearch.current ? searchInput.current : libraryCloseButton.current)?.focus({ preventScroll: true });
+            }
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== "Tab" || !libraryOpen || !window.matchMedia("(max-width: 1050px)").matches) return;
+            const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex='0']"))
+              .filter((control) => control.getClientRects().length > 0 && getComputedStyle(control).visibility !== "hidden");
+            const first = controls[0];
+            const last = controls[controls.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+          }}
           onDragEnter={(event) => { event.preventDefault(); setCrateDragActive(true); }}
           onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; setCrateDragActive(true); }}
           onDragLeave={(event) => {
@@ -1975,6 +2003,7 @@ export default function Home() {
           <div className="library-heading">
             <div><span className="eyebrow">YOUR CRATE</span><h1>Music library</h1></div>
             <label className="upload-button"><Upload size={16} />{loadTarget ? `Import to ${loadTarget}` : "Import"}<input type="file" accept="audio/*" multiple onChange={handleUpload} /></label>
+            <button ref={libraryCloseButton} className="library-close-button" aria-label="Close music library drawer" onClick={() => { setLibraryOpen(false); setLoadTarget(null); }}><X size={18} /><span>Close</span></button>
           </div>
           {loadTarget ? (
             <div className={`crate-load-target target-${loadTarget.toLowerCase()}`}>

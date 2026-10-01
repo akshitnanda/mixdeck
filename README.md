@@ -48,6 +48,8 @@ Favorites, category, energy, playable-only mode, and sort order save automatical
 
 Tap **Load** in either deck heading to choose a track for that deck. **Import to A/B** loads the first selected audio file directly and adds any remaining files to the crate. Loading returns mobile users to the Mix workspace; dismissing the library cancels the import target.
 
+On mobile and tablet, the full-height crate keeps **Import** and **Close** pinned while its contents scroll. Compact category tabs leave more room for tracks. Tab stays within the open drawer; Close or Escape returns keyboard focus to its opener. The closed drawer is removed from keyboard navigation.
+
 Manual loading protects a playing deck: choose **Keep playing**, load the other paused deck when available, or explicitly **Stop & replace**. Playback continues while the prompt is open. Imported files remain in the crate if you cancel; paused decks still load immediately. This guard covers library and targeted-import loading, not intentional queue playback or AutoDJ transitions.
 
 Tap **Pads** in a deck heading (the options button on desktop) to open its performance panel. Tap an empty cue pad to save the current position, then tap it again to jump back. Choose **Clear cues**, tap the saved pads to remove, and choose **Done clearing** to return to playback controls.
