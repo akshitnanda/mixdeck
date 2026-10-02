@@ -8,6 +8,7 @@ Live app: [mixdeck-dj.vercel.app](https://mixdeck-dj.vercel.app/)
 
 - Two independent Web Audio playback chains
 - Constant-power crossfader and per-deck volume
+- Transition Lab with live deck comparison, tempo matching, and 4/8/16-beat manual blends
 - Working three-band EQ and master gain
 - Per-deck low/high-pass filter, tempo-aware feedback delay, and generated stereo reverb
 - One to 32-beat loops with waveform loop regions
@@ -59,6 +60,14 @@ The **Loops & jumps** bank provides 1–32 beat loops and four- or sixteen-beat 
 The **Tempo** bank adjusts playback from −20% to +25%, with 0.1% fine steps and a reset button. Sync follows the other deck's current playing tempo and reports when a speed limit prevents an exact match.
 
 For imported audio, enter the original **Track BPM**, or tap **Tap BPM** steadily at least four times, then choose **Apply BPM**. BPM corrections update every deck holding that track and save to the local crate. Demo-track corrections last for the current session. Applying a BPM correction exits active loops on that track; changing playback speed alone preserves their beat length. Imported tracks initially use 120 BPM until corrected; tap tempo is a manual estimate.
+
+## Transition Lab
+
+Tap **BLEND** under the mixer crossfader. Compare the two decks' adjusted BPM, metadata-based key relationship, and energy direction. **Match A to B** or **Match B to A** changes tempo only; align cues by ear.
+
+With both decks playing, choose **4**, **8**, or **16 beats**, then **Fade to A/B**. The equal-power fade starts immediately and lasts that many beats at the outgoing deck's tempo when launched. This is not beat-grid or phrase synchronization. Neither deck is started, replaced, or stopped automatically.
+
+Moving either crossfader, **Center mix**, or **Take manual control** cancels the fade and AutoDJ (including its pending stop timer). A pause, track replacement, or tempo change stops a manual blend at its current position. Closing the lab leaves the fade running. All lab actions have touch-sized targets and the panel scrolls in landscape.
 
 ## Stream Overlay
 

@@ -46,6 +46,8 @@ import { readLocalCrate, storeLocalTracks, updateLocalTrackMetadata, type Stored
 import { getMixCompatibility } from "./_lib/mix-compatibility";
 import { usePwa } from "./_components/pwa-provider";
 import { PerformancePads } from "./_components/performance-pads";
+import { TransitionLab } from "./_components/transition-lab";
+import { crossfadePosition, transitionDurationMs } from "./_lib/transition";
 import { beatSeconds, clampRate, matchingRate } from "./_lib/tempo";
 import { needsLoadConfirmation } from "./_lib/load-safety";
 import { filterLibrary, type LibrarySort, type LibraryEnergy } from "./_lib/library";
@@ -53,7 +55,7 @@ import { LIBRARY_PREFERENCES_KEY, readLibraryPreferences, saveLibraryPreferences
 
 type DeckId = "A" | "B";
 type WorkspaceView = "Mix" | "Queue" | "Record";
-type PanelView = "help" | "settings" | "profile" | "deck-A" | "deck-B" | "confirm-load" | null;
+type PanelView = "help" | "settings" | "profile" | "deck-A" | "deck-B" | "confirm-load" | "transition" | null;
 type FxName = "filter" | "delay" | "reverb" | "flanger" | "distortion" | "phaser" | "tremolo" | "compressor";
 type FxState = Record<FxName, number>;
 
@@ -716,6 +718,8 @@ export default function Home() {
   });
   const [activeDeck, setActiveDeck] = useState<DeckId>("A");
   const [crossfader, setCrossfader] = useState(0.5);
+  const [blendBeats, setBlendBeats] = useState(8);
+  const [blendTarget, setBlendTarget] = useState<DeckId | null>(null);
   const [masterVolume, setMasterVolume] = useState(0.78);
   const [masterLevel, setMasterLevel] = useState(0.05);
   const [search, setSearch] = useState("");
@@ -780,6 +784,7 @@ export default function Home() {
   const crossfadeFrame = useRef<number | null>(null);
   const autoDjTimer = useRef<number | null>(null);
   const autoDjTransitioning = useRef(false);
+  const automationEpoch = useRef(0);
   const queueDragIndex = useRef<number | null>(null);
   const shuffleCursor = useRef(0);
   const queueStorageHydrated = useRef(false);
@@ -1334,13 +1339,14 @@ export default function Home() {
     setNotice(`Queue ranked for Deck ${activeDeck} with the visible on-device mix guide.`);
   };
 
-  const startDeckWithTrack = async (id: DeckId, track: Track) => {
+  const startDeckWithTrack = async (id: DeckId, track: Track, epoch = automationEpoch.current) => {
     const element = id === "A" ? audioA.current : audioB.current;
     if (!element || !track.url) {
       setNotice(`${track.title} is a catalog preview. Import audio before playing it.`);
       return false;
     }
     await initAudio();
+    if (epoch !== automationEpoch.current) return false;
     element.pause();
     const loadedState: Partial<DeckState> = {
       track,
@@ -1356,6 +1362,10 @@ export default function Home() {
     element.playbackRate = 1;
     try {
       await element.play();
+      if (epoch !== automationEpoch.current) {
+        if (deckState.current[id].track.id === track.id) updateDeck(id, { playing: !element.paused });
+        return false;
+      }
       updateDeck(id, { playing: true });
       setActiveDeck(id);
       return true;
@@ -1391,25 +1401,73 @@ export default function Home() {
     setQueue(current);
   };
 
-  const animateCrossfade = (target: number, duration = 5200) => {
+  const takeManualControl = () => {
+    automationEpoch.current += 1;
+    autoDjState.current = false;
+    autoDjTransitioning.current = false;
+    setAutoDj(false);
+    if (autoDjTimer.current !== null) window.clearTimeout(autoDjTimer.current);
+    if (crossfadeFrame.current !== null) cancelAnimationFrame(crossfadeFrame.current);
+    autoDjTimer.current = null;
+    crossfadeFrame.current = null;
+    setBlendTarget(null);
+  };
+
+  const moveCrossfader = (value: number) => {
+    takeManualControl();
+    crossfaderValue.current = value;
+    setCrossfader(value);
+  };
+
+  const animateCrossfade = (target: number, duration = 5200, manual = false) => {
     if (crossfadeFrame.current) cancelAnimationFrame(crossfadeFrame.current);
     const start = crossfaderValue.current;
+    const original = { A: deckState.current.A, B: deckState.current.B };
     let startedAt: number | null = null;
     const tick = (timestamp: number) => {
+      if (manual && (["A", "B"] as const).some((id) => {
+        const state = deckState.current[id];
+        const element = id === "A" ? audioA.current : audioB.current;
+        return !state.playing || !element || element.paused || state.track.id !== original[id].track.id || state.rate !== original[id].rate || state.track.bpm !== original[id].track.bpm;
+      })) {
+        takeManualControl();
+        setNotice("Blend stopped at its current position because a deck changed. Manual control restored.");
+        return;
+      }
       if (startedAt === null) startedAt = timestamp;
       const progress = Math.min(1, (timestamp - startedAt) / duration);
-      const eased = progress * progress * (3 - 2 * progress);
-      const value = start + (target - start) * eased;
+      const value = crossfadePosition(start, target, timestamp - startedAt, duration);
       crossfaderValue.current = value;
       setCrossfader(value);
       if (progress < 1) crossfadeFrame.current = requestAnimationFrame(tick);
-      else crossfadeFrame.current = null;
+      else {
+        crossfadeFrame.current = null;
+        if (manual) {
+          setBlendTarget(null);
+          setNotice(`Blend landed on Deck ${target === 0 ? "A" : "B"}. Both decks remain under your control.`);
+        }
+      }
     };
     crossfadeFrame.current = requestAnimationFrame(tick);
   };
 
+  const startBlend = (target: DeckId) => {
+    if (!deckState.current.A.playing || !deckState.current.B.playing || audioA.current?.paused !== false || audioB.current?.paused !== false) {
+      setNotice("Start both decks before using a timed blend.");
+      return;
+    }
+    const source = deckState.current[target === "A" ? "B" : "A"];
+    const duration = transitionDurationMs(blendBeats, source.track.bpm, source.rate);
+    if (duration === null) return;
+    takeManualControl();
+    setBlendTarget(target);
+    animateCrossfade(target === "A" ? 0 : 1, duration, true);
+    setNotice(`${blendBeats}-beat blend to Deck ${target}. Move the crossfader to take over.`);
+  };
+
   const advanceAutoDj = async (fromId: DeckId) => {
     if (!autoDjState.current || autoDjTransitioning.current) return;
+    const epoch = automationEpoch.current;
     const candidate = pickNextQueuedTrack(deckState.current[fromId].track);
     if (!candidate) {
       autoDjState.current = false;
@@ -1420,6 +1478,7 @@ export default function Home() {
     autoDjTransitioning.current = true;
     const toId: DeckId = fromId === "A" ? "B" : "A";
     const started = await startDeckWithTrack(toId, candidate.track);
+    if (epoch !== automationEpoch.current || !autoDjState.current) return;
     if (!started) {
       autoDjTransitioning.current = false;
       return;
@@ -1438,9 +1497,11 @@ export default function Home() {
   };
 
   const playQueuedNow = async (track: Track) => {
+    takeManualControl();
+    const epoch = automationEpoch.current;
     const targetDeck: DeckId = deckState.current.A.playing && !deckState.current.B.playing ? "B" : activeDeck;
     const started = await startDeckWithTrack(targetDeck, track);
-    if (started) {
+    if (started && epoch === automationEpoch.current) {
       consumeQueuedTrack(track.id);
       crossfaderValue.current = targetDeck === "A" ? 0 : 1;
       setCrossfader(crossfaderValue.current);
@@ -1450,6 +1511,7 @@ export default function Home() {
 
   const toggleAutoDj = () => {
     const next = !autoDjState.current;
+    takeManualControl();
     autoDjState.current = next;
     setAutoDj(next);
     if (!next) {
@@ -1471,8 +1533,9 @@ export default function Home() {
       setNotice("Add a playable track before starting AutoDJ.");
       return;
     }
-    void startDeckWithTrack(activeDeck, candidate.track).then((started) => {
-      if (started) {
+    const epoch = automationEpoch.current;
+    void startDeckWithTrack(activeDeck, candidate.track, epoch).then((started) => {
+      if (started && epoch === automationEpoch.current && autoDjState.current) {
         consumeQueuedTrack(candidate.track.id);
         crossfaderValue.current = activeDeck === "A" ? 0 : 1;
         setCrossfader(crossfaderValue.current);
@@ -2085,9 +2148,9 @@ export default function Home() {
               </div>
               <div className="crossfader-wrap">
                 <div className="crossfader-labels"><b>A</b><span>CROSSFADER</span><b>B</b></div>
-                <input className="crossfader" aria-label="Crossfader between deck A and deck B" type="range" min="0" max="1" step="0.01" value={crossfader} onChange={(event) => setCrossfader(Number(event.target.value))} style={{ "--cross-position": `${crossfader * 100}%` } as CSSProperties} />
+                <input className="crossfader" aria-label="Crossfader between deck A and deck B" type="range" min="0" max="1" step="0.01" value={crossfader} onPointerDown={takeManualControl} onChange={(event) => moveCrossfader(Number(event.target.value))} style={{ "--cross-position": `${crossfader * 100}%` } as CSSProperties} />
                 <div className="cross-scale"><i /><i /><i /><i /><i /></div>
-                <button className="center-cross" onClick={() => setCrossfader(0.5)}>CENTER</button>
+                <button className={`blend-launch ${blendTarget ? "active" : ""}`} aria-label="Open transition lab" onClick={() => setPanel("transition")}>{blendTarget ? `TO ${blendTarget}` : "BLEND"}</button>
               </div>
             </section>
 
@@ -2215,10 +2278,12 @@ export default function Home() {
             <header className="dialog-header">
               <div>
                 <span className="eyebrow">{panel === "confirm-load" ? "PLAYBACK PROTECTION" : panel.startsWith("deck-") ? "DECK CONTROL" : "MIXDECK LOCAL"}</span>
-                <h2 id="dialog-title">{panel === "confirm-load" ? `Replace track on Deck ${pendingLoad?.id}?` : panel === "help" ? "Get mixing fast" : panel === "settings" ? "Session settings" : panel === "profile" ? "Local DJ profile" : `Deck ${panel.slice(-1)} options`}</h2>
+                <h2 id="dialog-title">{panel === "transition" ? "Transition Lab" : panel === "confirm-load" ? `Replace track on Deck ${pendingLoad?.id}?` : panel === "help" ? "Get mixing fast" : panel === "settings" ? "Session settings" : panel === "profile" ? "Local DJ profile" : `Deck ${panel.slice(-1)} options`}</h2>
               </div>
               <button className="dialog-close" onClick={() => setPanel(null)} aria-label="Close dialog"><X size={18} /></button>
             </header>
+
+            {panel === "transition" && <TransitionLab decks={decks} beats={blendBeats} running={blendTarget} position={crossfader} onBeats={setBlendBeats} onSync={syncDeck} onFade={startBlend} onPosition={moveCrossfader} onStop={takeManualControl} />}
 
             {panel === "confirm-load" && pendingLoad && (
               <div className="dialog-content load-confirmation">
