@@ -7,7 +7,7 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "node --test scripts/next-glob-compat.test.mjs && eslint",
     "test:audio": "node --experimental-strip-types --test src/app/_lib/audio-analysis.test.ts src/app/_lib/tempo.test.ts src/app/_lib/load-safety.test.ts src/app/_lib/library.test.ts src/app/_lib/library-preferences.test.ts src/app/_lib/transition.test.ts src/app/_lib/beat-grid.test.ts",
     "icons:pwa": "node scripts/generate-pwa-icons.mjs",
     "verify:pwa": "node scripts/verify-pwa.mjs"
@@ -19,6 +19,7 @@
     "react-dom": "19.1.0"
   },
   "devDependencies": {
+    "fast-glob": "file:tools/next-glob-compat",
     "@eslint/eslintrc": "^3.3.7",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
@@ -28,5 +29,10 @@
     "eslint-config-next": "^16.3.6",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "@next/eslint-plugin-next@16.3.8": {
+      "fast-glob": "$fast-glob"
+    }
   }
 }

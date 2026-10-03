@@ -101,6 +101,8 @@ Imported tracks, saved sets, and recordings remain in the browser that created t
 
 ## Verification
 
+Next's lint plugin 16.3.8 pulls an unpatched `braces` dependency ([GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)). A version-scoped, development-only override supplies its sole `globSync` API through `tools/next-glob-compat`, backed by `tinyglobby` with directory expansion disabled. `npm run lint` tests the installed plugin's root discovery before ESLint, including literal paths, directory globs, braces, arrays, and Windows separators. Review/remove this override when upgrading the plugin; the full dependency audit remains enabled in CI.
+
 ```bash
 npm run lint
 npm run test:audio
