@@ -48,6 +48,7 @@ import { usePwa } from "./_components/pwa-provider";
 import { PerformancePads } from "./_components/performance-pads";
 import { TransitionLab } from "./_components/transition-lab";
 import { crossfadePosition, transitionDurationMs } from "./_lib/transition";
+import { gridJumpTarget, gridLoopRange, gridMarkers, gridPosition, nearestGridBeat, validGridAnchor } from "./_lib/beat-grid";
 import { beatSeconds, clampRate, matchingRate } from "./_lib/tempo";
 import { needsLoadConfirmation } from "./_lib/load-safety";
 import { filterLibrary, type LibrarySort, type LibraryEnergy } from "./_lib/library";
@@ -68,6 +69,7 @@ type Track = {
   duration: number;
   suggestedCue?: number;
   cueConfidence?: number;
+  gridAnchor?: number | null;
   genre: string;
   energy: "Low" | "Medium" | "High";
   color: string;
@@ -86,6 +88,7 @@ type DeckState = {
   fx: FxState;
   loop: { enabled: boolean; beats: number; start: number; end: number };
   hotCues: Array<number | null>;
+  snapToGrid: boolean;
 };
 
 type AudioChain = {
@@ -150,6 +153,7 @@ const BASE_TRACKS: Track[] = [
     duration: 24,
     suggestedCue: 0,
     cueConfidence: 1,
+    gridAnchor: 0,
     genre: "Future House",
     energy: "High",
     color: "#182947",
@@ -165,6 +169,7 @@ const BASE_TRACKS: Track[] = [
     duration: 24,
     suggestedCue: 0,
     cueConfidence: 1,
+    gridAnchor: 0,
     genre: "Deep House",
     energy: "Medium",
     color: "#3a1739",
@@ -409,11 +414,13 @@ function Cover({ track, small = false }: { track: Track; small?: boolean }) {
 
 function Waveform({ deck, progress, onSwipe }: { deck: DeckState; progress: number; onSwipe: (direction: -1 | 1) => void }) {
   const values = useMemo(() => waveformValues(deck.track.id), [deck.track.id]);
+  const markers = useMemo(() => gridMarkers(deck.track.bpm, deck.track.gridAnchor, deck.track.duration), [deck.track.bpm, deck.track.gridAnchor, deck.track.duration]);
+  const position = gridPosition(deck.currentTime, deck.track.bpm, validGridAnchor(deck.track.gridAnchor, deck.track.duration));
   const touchStart = useRef<{ x: number; y: number; id: number } | null>(null);
   return (
     <div
       className="waveform"
-      aria-label={`Waveform for ${deck.track.title}. Swipe left or right to jump four beats.`}
+      aria-label={`Track overview for ${deck.track.title}. Illustrative waveform, not analyzed audio. Swipe left or right to jump four beats.`}
       onTouchStart={(event) => {
         const touch = event.touches[0];
         touchStart.current = event.touches.length === 1 && touch ? { x: touch.clientX, y: touch.clientY, id: touch.identifier } : null;
@@ -435,9 +442,10 @@ function Waveform({ deck, progress, onSwipe }: { deck: DeckState; progress: numb
           <i key={index} style={{ height: `${(height * 100).toFixed(2)}%` }} />
         ))}
         <span className="overview-progress" style={{ width: `${progress * 100}%` }} />
+        <span className="wave-grid-position">{!position ? "NO GRID" : position.beforeAnchor ? "BEFORE GRID" : `P${position.phrase} · BAR ${position.bar} · ${position.beat}/4`}{deck.snapToGrid ? " · SNAP" : ""}</span>
       </div>
       <div className="wave-main">
-        <div className="beat-grid" />
+        <div className="beat-grid" aria-hidden="true">{markers.map((marker) => <i key={marker.time} className={marker.phraseStart ? "phrase-line" : ""} style={{ left: `${marker.time / deck.track.duration * 100}%` }} />)}</div>
         {deck.loop.enabled && (
           <span
             className="loop-region"
@@ -456,7 +464,7 @@ function Waveform({ deck, progress, onSwipe }: { deck: DeckState; progress: numb
             />
           ))}
         </div>
-        <div className="playhead"><span /></div>
+        <div className="playhead" style={{ left: `${progress * 100}%` }}><span /></div>
         {deck.hotCues.map((cue, index) => cue === null ? null : (
           <div
             className="cue-marker"
@@ -713,8 +721,8 @@ export default function Home() {
   const [shuffleQueue, setShuffleQueue] = useState(false);
   const [repeatQueue, setRepeatQueue] = useState(false);
   const [decks, setDecks] = useState<Record<DeckId, DeckState>>({
-    A: { track: BASE_TRACKS[0], playing: false, currentTime: 0, volume: 0.84, rate: 1, eq: { high: 0, mid: 0, low: 0 }, fx: defaultFx(), loop: { enabled: false, beats: 4, start: 0, end: 0 }, hotCues: Array(8).fill(null) },
-    B: { track: BASE_TRACKS[1], playing: false, currentTime: 0, volume: 0.84, rate: 1, eq: { high: 0, mid: 0, low: 0 }, fx: defaultFx(), loop: { enabled: false, beats: 4, start: 0, end: 0 }, hotCues: Array(8).fill(null) },
+    A: { track: BASE_TRACKS[0], playing: false, currentTime: 0, volume: 0.84, rate: 1, eq: { high: 0, mid: 0, low: 0 }, fx: defaultFx(), loop: { enabled: false, beats: 4, start: 0, end: 0 }, hotCues: Array(8).fill(null), snapToGrid: false },
+    B: { track: BASE_TRACKS[1], playing: false, currentTime: 0, volume: 0.84, rate: 1, eq: { high: 0, mid: 0, low: 0 }, fx: defaultFx(), loop: { enabled: false, beats: 4, start: 0, end: 0 }, hotCues: Array(8).fill(null), snapToGrid: false },
   });
   const [activeDeck, setActiveDeck] = useState<DeckId>("A");
   const [crossfader, setCrossfader] = useState(0.5);
@@ -868,6 +876,7 @@ export default function Home() {
               duration: stored.duration,
               suggestedCue: stored.suggestedCue,
               cueConfidence: stored.cueConfidence,
+              gridAnchor: validGridAnchor(stored.gridAnchor, stored.duration),
               genre: stored.genre,
               energy: stored.energy,
               color: stored.color,
@@ -1221,9 +1230,9 @@ export default function Home() {
       const track = tracks.find((item) => item.id === trackId);
       if (!track) {
         unavailable.push(trackId);
-        return { ...current, ...settings, fx: { ...defaultFx(), ...settings.fx }, playing: false };
+        return { ...current, ...settings, fx: { ...defaultFx(), ...settings.fx }, snapToGrid: false, playing: false };
       }
-      return { ...current, ...settings, fx: { ...defaultFx(), ...settings.fx }, track, playing: false };
+      return { ...current, ...settings, fx: { ...defaultFx(), ...settings.fx }, track, snapToGrid: false, playing: false };
     };
     audioA.current?.pause();
     audioB.current?.pause();
@@ -1268,6 +1277,7 @@ export default function Home() {
       playing: false,
       currentTime: 0,
       volume: 0.84,
+      snapToGrid: false,
       rate: 1,
       eq: { high: 0, mid: 0, low: 0 },
       fx: defaultFx(),
@@ -1351,6 +1361,7 @@ export default function Home() {
     const loadedState: Partial<DeckState> = {
       track,
       playing: false,
+      snapToGrid: false,
       currentTime: 0,
       rate: 1,
       loop: { enabled: false, beats: 4, start: 0, end: 0 },
@@ -1579,9 +1590,17 @@ export default function Home() {
       return;
     }
     const beatDuration = beatSeconds(1, decks[id].track.bpm);
-    const start = element.currentTime;
-    const end = Math.min(element.duration || decks[id].track.duration, start + beatDuration * beats);
-    updateDeck(id, { loop: { enabled: true, beats, start, end } });
+    const state = deckState.current[id];
+    const duration = Number.isFinite(element.duration) ? element.duration : state.track.duration;
+    const snapped = state.snapToGrid ? gridLoopRange(element.currentTime, beats, state.track.bpm, state.track.gridAnchor, duration) : null;
+    if (state.snapToGrid && !snapped) {
+      setNotice(`Deck ${id}: not enough audio for a full ${beats}-beat grid loop, or the grid is unavailable.`);
+      return;
+    }
+    const start = snapped?.start ?? element.currentTime;
+    const end = snapped?.end ?? Math.min(duration, start + beatDuration * beats);
+    if (snapped) element.currentTime = start;
+    updateDeck(id, { currentTime: snapped ? start : element.currentTime, loop: { enabled: true, beats, start, end } });
     setNotice(`Deck ${id} looping ${beats} ${beats === 1 ? "beat" : "beats"}.`);
   };
 
@@ -1617,9 +1636,15 @@ export default function Home() {
       return;
     }
     if (existing === null) {
-      nextCues[index] = element.currentTime;
+      const state = deckState.current[id];
+      const snapped = state.snapToGrid ? nearestGridBeat(element.currentTime, state.track.bpm, state.track.gridAnchor, state.track.duration) : null;
+      if (state.snapToGrid && snapped === null) {
+        setNotice(`Deck ${id}: calibrate the grid or turn Snap off before saving a cue.`);
+        return;
+      }
+      nextCues[index] = snapped ?? element.currentTime;
       updateDeck(id, { hotCues: nextCues });
-      setNotice(`Deck ${id} hot cue ${index + 1} set at ${formatTime(element.currentTime)}.`);
+      setNotice(`Deck ${id} hot cue ${index + 1} ${snapped === null ? "set" : "snapped"} at ${nextCues[index]?.toFixed(3)}s.`);
     } else {
       element.currentTime = existing;
       updateDeck(id, { currentTime: existing });
@@ -1680,6 +1705,7 @@ export default function Home() {
     updateDeck(id, {
       track,
       playing: false,
+      snapToGrid: false,
       currentTime: 0,
       rate: 1,
       loop: { enabled: false, beats: 4, start: 0, end: 0 },
@@ -1731,6 +1757,52 @@ export default function Home() {
     } catch {
       return "BPM updated for this session. Browser storage was unavailable.";
     }
+  };
+
+  const setTrackGrid = async (id: DeckId, requested: number | null | "playhead"): Promise<string> => {
+    const state = deckState.current[id];
+    const element = id === "A" ? audioA.current : audioB.current;
+    const value = requested === "playhead" ? element?.currentTime ?? state.currentTime : requested;
+    const anchor = value === null ? null : validGridAnchor(value, state.track.duration);
+    if (value !== null && anchor === null) return "Choose a point before the end of a playable track.";
+    const track = state.track;
+    setTracks((current) => current.map((item) => item.id === track.id ? { ...item, gridAnchor: anchor, duration: track.duration } : item));
+    for (const deckId of ["A", "B"] as const) {
+      const current = deckState.current[deckId];
+      if (current.track.id === track.id) updateDeck(deckId, { track: { ...current.track, gridAnchor: anchor }, snapToGrid: anchor !== null && current.snapToGrid, loop: { ...current.loop, enabled: false } });
+    }
+    const summary = anchor === null ? "Grid cleared. Snap disabled." : `Beat 1 anchored at ${anchor.toFixed(3)}s.`;
+    setNotice(summary);
+    if (track.source !== "Local") return `${summary} Demo grid changes last for this session.`;
+    try {
+      const saved = await updateLocalTrackMetadata(track.id, { gridAnchor: anchor, duration: track.duration });
+      return `${summary} ${saved ? "Saved to your local crate." : "Session only: track is not in the saved crate."}`;
+    } catch {
+      return `${summary} Session only: browser storage unavailable.`;
+    }
+  };
+
+  const toggleGridSnap = (id: DeckId) => {
+    const state = deckState.current[id];
+    if (validGridAnchor(state.track.gridAnchor, state.track.duration) === null) return;
+    if (!gridPosition(state.currentTime, state.track.bpm, state.track.gridAnchor)) return;
+    updateDeck(id, { snapToGrid: !state.snapToGrid });
+  };
+
+  const seekGrid = (id: DeckId, target: number) => {
+    const state = deckState.current[id];
+    const element = id === "A" ? audioA.current : audioB.current;
+    if (!element || !state.track.url || !Number.isFinite(target)) return;
+    const next = Math.max(0, Math.min(state.track.duration, target));
+    element.currentTime = next;
+    updateDeck(id, { currentTime: next, loop: { ...state.loop, enabled: false } });
+  };
+
+  const jumpGrid = (id: DeckId, direction: -1 | 1, beats: 4 | 32) => {
+    const state = deckState.current[id];
+    const element = id === "A" ? audioA.current : audioB.current;
+    const target = gridJumpTarget(element?.currentTime ?? state.currentTime, state.track.bpm, state.track.gridAnchor, state.track.duration, direction, beats);
+    if (target !== null) seekGrid(id, target);
   };
 
   const syncDeck = (id: DeckId) => {
@@ -2338,8 +2410,10 @@ export default function Home() {
 
             {panel.startsWith("deck-") && (
               <div className="dialog-content pad-dialog-content">
-                <PerformancePads key={panelDeckId} deck={panelDeckId} playing={decks[panelDeckId].playing} playable={Boolean(decks[panelDeckId].track.url)} hotCues={decks[panelDeckId].hotCues} loop={decks[panelDeckId].loop}
+                <PerformancePads key={panelDeckId} deck={panelDeckId} playing={decks[panelDeckId].playing} playable={Boolean(decks[panelDeckId].track.url)} hotCues={decks[panelDeckId].hotCues} loop={decks[panelDeckId].loop} feedback={notice}
                   trackId={decks[panelDeckId].track.id} bpm={decks[panelDeckId].track.bpm} rate={decks[panelDeckId].rate}
+                  currentTime={decks[panelDeckId].currentTime} duration={decks[panelDeckId].track.duration} gridAnchor={decks[panelDeckId].track.gridAnchor} snapToGrid={decks[panelDeckId].snapToGrid}
+                  onGridAnchor={(anchor) => setTrackGrid(panelDeckId, anchor)} onGridSnap={() => toggleGridSnap(panelDeckId)} onGridSeek={(target) => seekGrid(panelDeckId, target)} onGridJump={(direction, beats) => jumpGrid(panelDeckId, direction, beats)}
                   onRate={(rate) => changeDeckRate(panelDeckId, rate)} onSync={() => syncDeck(panelDeckId)} onBpm={(bpm) => correctTrackBpm(panelDeckId, bpm)}
                   onToggle={() => void toggleDeck(panelDeckId)} onCue={(index, clear) => triggerHotCue(panelDeckId, index, clear)}
                   onLoop={(beats) => toggleLoop(panelDeckId, beats)} onJump={(beats) => beatJumpDeck(panelDeckId, beats)}

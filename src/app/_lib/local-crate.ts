@@ -7,6 +7,7 @@ export type StoredCrateTrack = {
   duration: number;
   suggestedCue?: number;
   cueConfidence?: number;
+  gridAnchor?: number | null;
   genre: string;
   energy: "Low" | "Medium" | "High";
   color: string;
@@ -20,7 +21,7 @@ const DB_NAME = "mixdeck-local-crate";
 const STORE_NAME = "tracks";
 const DB_VERSION = 1;
 
-type TrackMetadata = Partial<Pick<StoredCrateTrack, "bpm" | "duration" | "key" | "suggestedCue" | "cueConfidence">>;
+type TrackMetadata = Partial<Pick<StoredCrateTrack, "bpm" | "duration" | "key" | "suggestedCue" | "cueConfidence" | "gridAnchor">>;
 
 const openCrate = () => new Promise<IDBDatabase>((resolve, reject) => {
   const request = window.indexedDB.open(DB_NAME, DB_VERSION);

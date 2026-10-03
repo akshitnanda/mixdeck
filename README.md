@@ -13,6 +13,7 @@ Live app: [mixdeck-dj.vercel.app](https://mixdeck-dj.vercel.app/)
 - Per-deck low/high-pass filter, tempo-aware feedback delay, and generated stereo reverb
 - One to 32-beat loops with waveform loop regions
 - Eight color-coded hot cues per deck with waveform markers
+- Manual beat-grid anchors, 4/4 eight-bar phrase readouts, and optional snapping for new hot cues and beat loops
 - Large performance pads with cue timestamps, explicit clearing, loop lengths, and beat jumps
 - Four-beat deck jumps plus keyboard controls for play, cue, sync, loops, hot cues, and momentary pitch bend
 - Reorderable set queue with playable-state feedback and direct queue playback
@@ -60,6 +61,14 @@ The **Loops & jumps** bank provides 1–32 beat loops and four- or sixteen-beat 
 The **Tempo** bank adjusts playback from −20% to +25%, with 0.1% fine steps and a reset button. Sync follows the other deck's current playing tempo and reports when a speed limit prevents an exact match.
 
 For imported audio, enter the original **Track BPM**, or tap **Tap BPM** steadily at least four times, then choose **Apply BPM**. BPM corrections update every deck holding that track and save to the local crate. Demo-track corrections last for the current session. Applying a BPM correction exits active loops on that track; changing playback speed alone preserves their beat length. Imported tracks initially use 120 BPM until corrected; tap tempo is a manual estimate.
+
+## Beat Grid & Track Preparation
+
+Open a deck's **Pads → Beat grid**. Set the original track BPM in **Tempo**, position the playhead at a downbeat, and choose **Set beat 1 here**. Fine-tune with **Grid −10 ms / +10 ms**. Anchors for local audio save to the device's crate and update every deck holding the track; demo anchors start at zero and edits last for the session. A grid edit releases active loops on that track without moving existing cues.
+
+The readout counts four beats per bar and eight bars per phrase from that anchor. **Previous/Next bar** and **Previous/Next phrase** seek to grid boundaries and exit loops; unavailable boundaries are disabled. These are manual structural assumptions, not beat or phrase detection. The full-track overview shows actual grid markers and playhead position over an **illustrative**, not audio-derived, waveform.
+
+Enable **Snap ON** to place newly saved hot cues and beat-loop starts on the nearest grid beat. A snapped loop requires enough audio for its full length. Existing cues are not moved; manual IN/OUT points and relative beat jumps remain unchanged. Snapping changes position, not trigger timing, and resets off when loading a track, resetting a deck, or restoring a set. Playback-rate changes do not shift the grid because its timing uses source seconds.
 
 ## Transition Lab
 
